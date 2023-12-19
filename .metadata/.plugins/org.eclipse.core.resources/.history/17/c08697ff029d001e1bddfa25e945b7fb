@@ -1,0 +1,70 @@
+/*
+ * UART.c
+ *
+ *  Created on: Dec 17, 2023
+ *      Author: jaywe
+ */
+
+#include "UART.h"
+
+static uint16_t compute_uart_bd(uint32_t periph_clk, uint32_t baudrate);
+static void uart_set_baudrate(uint32_t periph_clk, uint32_t baudrate);
+static void uart2_write(int ch);
+
+
+int __io_putchar(int ch)
+{
+	uart2_write(ch);
+	return ch;
+}
+void uart2_tx_init(void)
+{
+	/*************Configure UART GPIO pin********************/
+	/*1.Enable clock access to GPIOA*/
+	RCC->AHB1ENR |= GPIODEN;
+
+	/*2.Set PA2 mode to alternate function mode*/
+	GPIOD->MODER &= ~(1U<<16);
+	GPIOD->MODER |=	 (1U<<17);
+
+	/*3.Set PD8 alternate function function type to AF7(UART3_TX)*/
+	GPIOD->AFR[1] |= (1U<<0);
+	GPIOD->AFR[1] |= (1U<<1);
+	GPIOD->AFR[1] |= (1U<<2);
+	GPIOD->AFR[1] &= ~(1U<<3);
+
+	/*************Configure UART Module********************/
+	/*4. Enable clock access to UART2*/
+	RCC->APB1ENR |= UART3EN;
+
+	/*5. Set baudrate*/
+	uart_set_baudrate(CLK,UART_BAUDRATE);
+
+	/*6. Set transfer direction*/
+	 USART3->CR1 = CR1_TE;
+
+	/*7. Enable uart module*/
+	 USART3->CR1 |= CR1_UE;
+
+}
+
+static void uart2_write(int ch)
+{
+	/*Make sure the transmit data register is empty*/
+	while(!(USART3->SR & SR_TXE)){}
+
+	/*Write to transmit data register*/
+	USART3->DR = (ch & 0xFF);
+}
+
+static uint16_t compute_uart_bd(uint32_t periph_clk, uint32_t baudrate)
+{
+	return ((periph_clk +( baudrate/2U ))/baudrate);
+}
+
+
+static void uart_set_baudrate(uint32_t periph_clk, uint32_t baudrate)
+{
+	USART3->BRR  = compute_uart_bd(periph_clk,baudrate);
+}
+

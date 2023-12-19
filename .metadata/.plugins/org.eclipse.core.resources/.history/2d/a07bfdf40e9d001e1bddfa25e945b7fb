@@ -1,0 +1,15 @@
+#include "CMSIS/Device/ST/STM32F4xx/Include/stm32f4xx.h"
+#include <stdio.h>
+#include "UART.h"
+
+
+
+
+int main(void)
+{
+	uart3_tx_init();
+    /* Loop forever */
+	while(1){
+		printf("Printf is now available!\n\r");
+	}
+}

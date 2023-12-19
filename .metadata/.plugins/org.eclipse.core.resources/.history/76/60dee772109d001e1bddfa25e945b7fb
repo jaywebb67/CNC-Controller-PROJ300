@@ -1,0 +1,27 @@
+#include "CMSIS/Device/ST/STM32F4xx/Include/stm32f4xx.h"
+#include <stdio.h>
+#include "UART.h"
+
+
+
+
+int main(void)
+{
+	uart3_tx_init();
+
+	setvbuf(stdin, NULL, _IONBF, 0);
+
+	char str1[20],str2[20];
+
+    /* Loop forever */
+	while(1){
+		printf("Enter name: ");
+		scanf("%19s", str1);
+
+		printf("Enter your website name: ");
+		scanf("%29s", str2);
+
+		printf("Entered Name: %s\n", str1);
+		printf("Entered Website:%s", str2);
+	}
+}
