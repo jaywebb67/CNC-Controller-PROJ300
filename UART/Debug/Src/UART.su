@@ -1,0 +1,9 @@
+../Inc/CMSIS/Include/core_cm4.h:1688:22:__NVIC_EnableIRQ	16	static
+../Src/UART.c:19:5:__io_putchar	16	static
+../Src/UART.c:24:5:__io_getchar	16	static
+../Src/UART.c:38:6:uart3_tx_init	8	static
+../Src/UART.c:83:13:uart3_write	16	static
+../Src/UART.c:92:12:uart_get	4	static
+../Src/UART.c:102:17:compute_uart_bd	16	static
+../Src/UART.c:108:13:uart_set_baudrate	16	static
+../Src/UART.c:113:6:USART3_IRQHandler	8	static
