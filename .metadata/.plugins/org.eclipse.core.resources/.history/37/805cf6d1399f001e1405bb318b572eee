@@ -1,6 +1,5 @@
 #include "CMSIS/Device/ST/STM32F4xx/Include/stm32f4xx.h"
 #include <stdio.h>
-#include <stdlib.h>
 #include "UART.h"
 #include "Gcode.h"
 
@@ -23,8 +22,8 @@ int main(void)
 		printf("Enter G-code Command: ");
 		scanf(" %[^\r]s", str1);
 
-		//printf("\n\rEntered Gcode: %s\n\r",str1);
-		parse_gcode(str1);
+		printf("Entered Gcode: %s",str1);
+		//parse_gcode(str1);
 
 
 	}

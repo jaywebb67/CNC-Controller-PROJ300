@@ -1,21 +1,21 @@
-23:38:19 **** Incremental Build of configuration Debug for project UART ****
+13:53:26 **** Incremental Build of configuration Debug for project UART ****
 make -j20 all 
-arm-none-eabi-gcc "../Src/main.c" -mcpu=cortex-m4 -std=gnu11 -g3 -DDEBUG -DSTM32 -DSTM32F429ZITx -DSTM32F4 -DNUCLEO_F429ZI -c -I../Inc -O0 -ffunction-sections -fdata-sections -Wall -fstack-usage -fcyclomatic-complexity -MMD -MP -MF"Src/main.d" -MT"Src/main.o" --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -o "Src/main.o"
+arm-none-eabi-gcc "../Src/Gcode.c" -mcpu=cortex-m4 -std=gnu11 -g3 -DDEBUG -DSTM32 -DSTM32F429ZITx -DSTM32F4 -DNUCLEO_F429ZI -c -I../Inc -O0 -ffunction-sections -fdata-sections -Wall -fstack-usage -fcyclomatic-complexity -MMD -MP -MF"Src/Gcode.d" -MT"Src/Gcode.o" --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -o "Src/Gcode.o"
 arm-none-eabi-gcc -o "UART.elf" @"objects.list"   -mcpu=cortex-m4 -T"C:\Github\CNC-Controller-PROJ300\UART\STM32F429ZITX_FLASH.ld" --specs=nosys.specs -Wl,-Map="UART.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -u _printf_float -u _scanf_float -Wl,--start-group -lc -lm -Wl,--end-group
 Finished building target: UART.elf
  
 arm-none-eabi-size  UART.elf 
 arm-none-eabi-objdump -h -S UART.elf  > "UART.list"
    text	   data	    bss	    dec	    hex	filename
-  26952	    464	   1904	  29320	   7288	UART.elf
+  28036	    464	   1904	  30404	   76c4	UART.elf
 Finished building: default.size.stdout
  
 Finished building: UART.list
  
-23:38:22 **** Incremental Build of configuration Debug for project UART ****
+13:53:30 **** Incremental Build of configuration Debug for project UART ****
 make -j20 all 
 arm-none-eabi-size  UART.elf 
    text	   data	    bss	    dec	    hex	filename
-  26952	    464	   1904	  29320	   7288	UART.elf
+  28036	    464	   1904	  30404	   76c4	UART.elf
 Finished building: default.size.stdout
  

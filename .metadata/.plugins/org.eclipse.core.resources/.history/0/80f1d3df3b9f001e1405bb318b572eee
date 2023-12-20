@@ -1,0 +1,72 @@
+/*
+ * Gcode.c
+ *
+ *  Created on: Dec 20, 2023
+ *      Author: jaywe
+ */
+
+#include "Gcode.h"
+
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+
+void parse_gcode(char *line) {
+    char *token;
+    token = strtok(line, " ");
+    while (token != NULL) {
+        if (token[0] == 'G') {
+            // Handle G-code command
+            int code = atoi(&token[1]);
+            switch (code) {
+                case 0:
+                    printf("G0 rapid move\n\r");
+                    break;
+                case 1:
+                    printf("G1 linear move\n\r");
+                    break;
+                case 2:
+                    printf("G2 Circular move\n\r");
+                    break;
+                // Add more cases for other G-code commands
+                default:
+                    printf("Unknown G-code command: %s\n\r", token);
+            }
+        } else if (token[0] == 'M') {
+            // Handle M-code command
+            int code = atoi(&token[1]);
+            switch (code) {
+                case 3:
+                    printf("M3 spindle on, clockwise rotation\n");
+                    break;
+                case 5:
+                    printf("M5 spindle off\n\r");
+                    break;
+                // Add more cases for other M-code commands
+                default:
+                    printf("Unknown M-code command: %s\n\r", token);
+            }
+        } else if (token[0] == ';') {
+            // Ignore comment
+            break;
+        }else if (token[0] == 'X') {
+            // Ignore comment
+            printf("X-axis Location");
+        }else if (token[0] == 'Y') {
+            // Ignore comment
+            printf("X-axis Location");
+        }else if (token[0] == 'Z') {
+            // Ignore comment
+            printf("X-axis Location");
+        } else {
+            // Handle other tokens (e.g. X, Y, Z, F)
+            printf("Token: %s\n\r", token);
+        }
+        token = strtok(NULL, " ");
+    }
+}
+
+
+

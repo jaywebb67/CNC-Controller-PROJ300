@@ -1,3 +1,4 @@
+"./Src/Gcode.o"
 "./Src/UART.o"
 "./Src/main.o"
 "./Src/syscalls.o"

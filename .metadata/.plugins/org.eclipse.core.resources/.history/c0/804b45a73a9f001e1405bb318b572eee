@@ -23,8 +23,8 @@ int main(void)
 		printf("Enter G-code Command: ");
 		scanf(" %[^\r]s", str1);
 
-		//printf("\n\rEntered Gcode: %s\n\r",str1);
-		parse_gcode(str1);
+		printf("\n\rEntered Gcode: %s\n\r",str1);
+		//parse_gcode(str1);
 
 
 	}
