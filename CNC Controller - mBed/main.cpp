@@ -2,39 +2,45 @@
 
 #include "steppers.hpp"
 #include "jogButtons.hpp"
-#include "clock_config.hpp"
+//#include "clock_config.hpp"
 
-
+// Thread motorMovement;
+// EventQueue motorQueue;
 
 
 // main() runs in its own thread in the OS
 int main()
 {
-    clock_config180();
-    SystemCoreClockUpdate();
+    //motorMovement.start(callback(&motorQueue, &EventQueue::dispatch_forever));
+    volatile bool skip = 0;
+    volatile int axis = 0;
+    volatile long steps = 0;
+    volatile int acceleration = 0;
+    volatile int max_speed = 0;
+    volatile int mode = 0;
 
+
+    printf("\n\rEnter the acceleration rate: " );
     
-    bool skip = 0;
-    int dir = 0;
-    int axis = 0;
-    uint32_t steps = 0;
-    uint32_t frequency = 0;
-    uint16_t microstepping = 8;
-    int mode;
-
-
-    printf("\n\rEnter the desired PWM frequency: " );
-    
-    if(scanf("%d",&frequency) ==1){
-        printf("%d \n\r",frequency);
+    if(scanf("%d",&acceleration) ==1){
+        printf("%d \n\r",acceleration);
     }
 
     else{
-        printf("Failed to scan frequency input\n\r");
+        printf("Failed to scan acceleration input\n\r");
     }
 
+    printf("\n\rEnter the max speed: " );
+    
+    if(scanf("%d",&max_speed) ==1){
+        printf("%d \n\r",max_speed);
+    }
 
-    stepperInit(static_cast<float>(frequency));
+    else{
+        printf("Failed to scan max_speed input\n\r");
+    }
+
+    stepperInit(acceleration,max_speed);
     jogInit();
 
     printf("\n\rSelect mode of operation (1 = Jog, 2 = MDI): ");
@@ -56,17 +62,17 @@ int main()
             printf("%d\n\r",axis);
 
             printf("Select the amount of steps to take: ");
-            scanf("%d",&steps);
-            printf("%d\n\r",steps);
+            scanf("%ld",&steps);
+            printf("%ld\n\r",steps);
 
-            coordinatedMotion(steps,max_velocity);
+            prepareMovement(axis, steps);
+            prepareMovement(2, 2* steps);
+            prepareMovement(3, 3* steps);
+            runAndWait();
         }
         else{
             ThisThread::sleep_for(5s);
         }
-
-        
-
     }
 }
 

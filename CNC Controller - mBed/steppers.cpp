@@ -1,4 +1,5 @@
 #include "steppers.hpp"
+#include <chrono>
 #include <cstdint>
 
 DigitalInOut stepperEN(stepperEN_pin,PinDirection::PIN_OUTPUT,PinMode::OpenDrainNoPull,1);
@@ -15,329 +16,354 @@ DigitalOut y_step(ystep_pin,0);
 
 Ticker zTimer;
 DigitalOut z_step(zstep_pin,0);
-// InterruptIn y_stepper(ystep_pin);
-// PwmOut y_step(ystep_pin);
-
-// InterruptIn z_stepper(zstep_pin);
-// PwmOut z_step(zstep_pin);
-
-Thread motorMovementX;
-EventQueue motorQueueX;
-
-Thread motorMovementY;
-EventQueue motorQueueY;
-
-Thread motorMovementZ;
-EventQueue motorQueueZ;
-
-motionPhase_t motion_phase;
-
-bool countSteps = 0;
 
 
-//volatile float period_us =625; // Initial period
+// Thread motorMovementX;
+// EventQueue motorQueueX;
 
-void x_stepISR();
-void y_stepISR();
-void z_stepISR();
+// Thread motorMovementY;
+// EventQueue motorQueueY;
+
+// Thread motorMovementZ;
+// EventQueue motorQueueZ;
+
+volatile stepperInfo steppers[stepperNumber];
+volatile uint8_t remainingSteppersFlag = 0;
 
 
 
-void stepperInit(float frequency){
+void timerCallbackX();
+void timerCallbackY();
+void timerCallbackZ();
 
-    x_stepper.rise(NULL);
-    x_step.period(1.0/(frequency));
-    x_step.write(0.5);
-    x_step.suspend();
+void xStep() {
+  Xstep_HIGH
+  Xstep_LOW
+}
 
-    // y_stepper.rise(NULL);
-    // y_step.period(1.0/(frequency));
-    // y_step.write(0.5);
-    // y_step.suspend();
+void xDir(int dir){
+    if(dir){
+        GPIOB->BSRR = (1U << 4);
+    }
+    else{
+        GPIOB->BSRR = (1U << (4+15));
+    }
+}
 
-    // z_stepper.rise(NULL);
-    // z_step.period(1.0/(frequency));
-    // z_step.write(0.5);
-    // z_step.suspend();
+void yStep() {
+  Ystep_HIGH
+  Ystep_LOW
+}
+
+void yDir(int dir){
+    if(dir){
+        GPIOB->BSRR = (1U << 3);
+    }
+    else{
+        GPIOB->BSRR = (1U << (3+15));
+    }
+}
+
+void zStep() {
+  Zstep_HIGH
+  Zstep_LOW
+}
+
+void zDir(int dir){
+    if(dir){
+        GPIOB->BSRR = (1U << 5);
+    }
+    else{
+        GPIOB->BSRR = (1U << (5+15));
+    }
+}
+
+void stepperInit(volatile int accel,volatile int max_speed){
+
+    steppers[0].dirFunc = xDir;
+    steppers[0].stepFunc = xStep;
+    steppers[0].acceleration = accel;
+    steppers[0].minStepInterval = max_speed;
+
+    steppers[1].dirFunc = yDir;
+    steppers[1].stepFunc = yStep;
+    steppers[1].acceleration = accel;
+    steppers[1].minStepInterval = max_speed;
+
+    steppers[2].dirFunc = zDir;
+    steppers[2].stepFunc = zStep;
+    steppers[2].acceleration = accel;
+    steppers[2].minStepInterval = max_speed;
 
 
     stepperEN = 1;
-    countSteps = 0;
 
-    motorMovementX.start(callback(&motorQueueX, &EventQueue::dispatch_forever));
-    motorMovementY.start(callback(&motorQueueY, &EventQueue::dispatch_forever));
-    motorMovementZ.start(callback(&motorQueueZ, &EventQueue::dispatch_forever));
+
+    // motorMovementX.start(callback(&motorQueueX, &EventQueue::dispatch_forever));
+    // motorMovementY.start(callback(&motorQueueY, &EventQueue::dispatch_forever));
+    // motorMovementZ.start(callback(&motorQueueZ, &EventQueue::dispatch_forever));
+}
+
+void resetStepper(volatile stepperInfo& si) {
+    si.c0 = si.acceleration;
+    si.d = si.c0;
+    si.di = si.d;
+    si.stepCount = 0;
+    si.n = 0;
+    si.rampUpStepCount = 0;
+    si.movementDone = false;
+    si.speedScale = 1;
+
+    float a = si.minStepInterval / (float)si.c0;
+    a *= 0.676;
+
+    float m = ((a*a - 1) / (-2 * a));
+    float n = m * m;
+
+    si.estStepsToSpeed = n;
 }
 
 
-
-void move_axis_stepper_motor(int axis, uint32_t steps, int dir){
-
-    stepper_direction(axis,dir);
-//	axis = toupper(axis);
-	switch(axis){
-        case 1:
-			enableSteppers(2,0);
-            enableSteppers(3,0);
-            enableSteppers(1,1);
-			xDesiredSteps = steps;
-			x_steps_taken = 0;
-			break;
-        case 2:
-			enableSteppers(1,0);
-            enableSteppers(3,0);
-            enableSteppers(2,1);
-			yDesiredSteps = steps;
-			y_steps_taken = 0;
-			break;
-		case 3:
-			enableSteppers(1,0);
-            enableSteppers(2,0);
-            enableSteppers(3,1);
-			zDesiredSteps = steps;
-			z_steps_taken = 0;
-			break;
-		default:
-			break;
-
-	}
-	stepperEN = 0;
-	countSteps = 1;
-
+float getDurationOfAcceleration(volatile stepperInfo& s, unsigned int numSteps) {
+  float d = s.c0;
+  float totalDuration = 0;
+  for (unsigned int n = 1; n < numSteps; n++) {
+    d = d - (2 * d) / (4 * n + 1);
+    totalDuration += d;
+  }
+  return totalDuration;
 }
 
-void oneRevolution(uint16_t microstepping,int axis,int dir){
+void prepareMovement(int whichMotor, long steps) {
+  volatile stepperInfo& si = steppers[whichMotor-1];
+  si.dirFunc( steps > 0 ? 1 : 0 );
+  si.dir = steps > 0 ? 1 : -1;
+  si.totalSteps = abs(steps);
+  resetStepper(si);
+  
+  remainingSteppersFlag |= (1 << (whichMotor-1));
 
-	uint8_t steps_per_revolution = 200;
-	uint32_t steps =0;
+  unsigned long stepsAbs = abs(steps);
 
-	if(microstepping ==0){
-		microstepping = 1;
-	}
-
-	steps = steps_per_revolution * microstepping;
-	move_axis_stepper_motor(axis,steps,dir);
-
+  if ( (2 * si.estStepsToSpeed) < stepsAbs ) {
+    // there will be a period of time at full speed
+    unsigned long stepsAtFullSpeed = stepsAbs - 2 * si.estStepsToSpeed;
+    float accelDecelTime = getDurationOfAcceleration(si, si.estStepsToSpeed);
+    si.estTimeForMove = 2 * accelDecelTime + stepsAtFullSpeed * si.minStepInterval;
+  }
+  else {
+    // will not reach full speed before needing to slow down again
+    float accelDecelTime = getDurationOfAcceleration( si, stepsAbs / 2 );
+    si.estTimeForMove = 2 * accelDecelTime;
+  }
 }
 
-void stepper_direction(int axis,int dir){
-    if(dir){  
-        x_dir = 1;
-        y_dir = 1;
-        z_dir = 1;
+void adjustSpeedScales() {
+  float maxTime = 0;
+  
+  for (int i = 0; i < stepperNumber; i++) {
+    if ( ! ((1 << i) & remainingSteppersFlag) )
+      continue;
+    if ( steppers[i].estTimeForMove > maxTime )
+      maxTime = steppers[i].estTimeForMove;
+  }
+
+  if ( maxTime != 0 ) {
+    for (int i = 0; i < stepperNumber; i++) {
+      if ( ! ( (1 << i) & remainingSteppersFlag) )
+        continue;
+      steppers[i].speedScale = maxTime / steppers[i].estTimeForMove;
     }
-    else{    
-        x_dir = 0;
-        y_dir = 0;
-        z_dir = 0;
-    }
+  }
+}
+
+
+void runAndWait() {
+    stepperEN = 0;
+    adjustSpeedScales();
+    xTimer.attach(&timerCallbackX, steppers[0].di*1us);
+    yTimer.attach(&timerCallbackY, steppers[1].di*1us);
+    zTimer.attach(&timerCallbackZ, steppers[2].di*1us); 
+    while(remainingSteppersFlag){};
     return;
 }
 
-void enableSteppers(int axis, bool state){
+void disableStepperInterrupt(int axis){
 
-    if(state){
-        switch(axis){
-            case 1:
-                x_stepper.rise(&x_stepISR);
-                x_step.resume();
-                break;
-            case 2:
-                // y_stepper.rise(&y_stepISR);
-                // y_step.resume();
-                break;
-            case 3:
-                // z_stepper.rise(&z_stepISR);
-                // z_step.resume();
-                break;
-            default:
-                x_stepper.rise(&x_stepISR);
-                // y_stepper.rise(&y_stepISR);
-                // z_stepper.rise(&z_stepISR);
-                x_step.resume();
-                // y_step.resume();
-                // z_step.resume();
-        }      
-    }
-    else{
-        switch(axis){
-            case 1:
-                x_step.suspend();
-                x_stepper.rise(NULL);
-                break;
-            case 2:
-                // y_step.suspend();
-                // y_stepper.rise(NULL);
-                break;
-            case 3:
-                // z_step.suspend();
-                // z_stepper.rise(NULL);
-                break;
-            default:
-                x_step.suspend();
-                // y_step.suspend();
-                // z_step.suspend();
-                x_stepper.rise(NULL);
-                // y_stepper.rise(NULL);
-                // z_stepper.rise(NULL);
-        }   
-    }
+    switch(axis){
+        case 1:
+            xTimer.detach();
+            break;
+        case 2:
+            yTimer.detach();
+            break;
+        case 3:
+            zTimer.detach();
+            break;
+        default:
+            xTimer.detach();
+            yTimer.detach();
+            zTimer.detach();
+            break;
+    }  
+    return; 
 }
 
-void coordinatedMotion(int32_t steps, uint16_t target_velocity){
-
-    if(steps<0){
-        stepper_direction(1, 0);
-    }
-    else{
-        stepper_direction(1, 1);
-    }
-
-    accel_d = ((float(target_velocity) * float(target_velocity)) / (2*max_acceleration));
-    accel_t = float(target_velocity) / max_acceleration;
-
-    constVelocity_d = abs(steps) - (2 * accel_d);
-
-    constVelocity_t = float(constVelocity_d) / max_acceleration;
-
-    freq_step = float(target_velocity-1600)/float(accel_d);
-
-    xDesiredSteps = accel_d;
-    x_steps_taken = 0;
-    motion_phase = acceleration;
-
-    enableSteppers(1,1);
-
-	
-	stepperEN = 0;
-    countSteps = 1;
-
-}
-
-void constantAcceleration(uint32_t steps){
-
-}
 
 void timerCallbackX(){
-	if(countSteps){
-        x_steps_taken++;
-        switch (motion_phase) {
-            case acceleration:
-                // Increment step count for axis Z
-                if (x_steps_taken >= accel_d) {
-                    x_step.period(1.0/(max_velocity));
-                    motion_phase = constantV;
-                }
-                else{
-                    x_step.period(1.0/(1600 + (x_steps_taken * freq_step)));
-                }
-            case constantV:
-                if (x_steps_taken >= (accel_d+constVelocity_d)) {
-                    motion_phase = deceleration;
-                }
-            case deceleration:
-                if (x_steps_taken >= (2*accel_d+constVelocity_d)) {
-                    x_step.suspend();
+    if(remainingSteppersFlag & (1U << 0)){
+        volatile stepperInfo& s = steppers[0];
+        unsigned long currentDelay = s.di;
+        if ( s.stepCount < s.totalSteps ) {
+            s.stepFunc();
+            s.stepCount++;
+            s.stepPosition += s.dir;
+            if ( s.stepCount >= s.totalSteps ) {
+                s.movementDone = true;
+                remainingSteppersFlag &= ~(1 << 0);
+                if (!remainingSteppersFlag) {
                     stepperEN = 1;
-                    countSteps = 0;
-                    x_steps_taken = 0;
-                    xDesiredSteps = 0;
+                    return;
                 }
-                else{
-                    x_step.period(1.0/(1600 + ((accel_d-(x_steps_taken-(accel_d+constVelocity_d))) * freq_step)));
-                }
-            default: 
-                break;
-
+            }
         }
+
+        if ( s.rampUpStepCount == 0 ) {
+            s.n++;
+            s.d = s.d - (2 * s.d) / (4 * s.n + 1);
+            if ( s.d <= s.minStepInterval ) {
+            s.d = s.minStepInterval;
+            s.rampUpStepCount = s.stepCount;
+            }
+            if ( s.stepCount >= s.totalSteps / 2 ) {
+            s.rampUpStepCount = s.stepCount;
+            }
+            s.rampUpStepTime += s.d;
+        }
+        else if ( s.stepCount >= s.totalSteps - s.rampUpStepCount ) {
+            s.d = (s.d * (4 * s.n + 1)) / (4 * s.n + 1 - 2);
+            s.n--;
+        }
+
+        s.di = s.d * s.speedScale; // integer
+
+        //std::chrono::microseconds delay = std::chrono::microseconds(s.di) - (std::chrono::microseconds(currentDelay) - (xTimer.remaining_time()));;
+        
+        xTimer.attach(&timerCallbackX,s.di*1us);
+    }
+    else{
+        disableStepperInterrupt(1);
+        remainingSteppersFlag &= ~(1 << 0);
+        return;
     }
 }
 
 
 void timerCallbackY(){
-	if(countSteps & (xDesiredSteps != 0)){
-        switch (motion_phase) {
-            case acceleration:
-                // Increment step count for axis Z
-                x_steps_taken++;
-                x_step.period(1.0/(freq_step + (x_steps_taken * freq_step)));
-                x_step.write(0.5);
-                if (x_steps_taken >= xDesiredSteps) {
-                    x_steps_taken = 0;
-                    xDesiredSteps = constVelocity_d;
-                    motion_phase = constantV;
-                }
-            case constantV:
-                x_steps_taken++;
-                if (x_steps_taken >= xDesiredSteps) {
-                    x_steps_taken = 0;
-                    xDesiredSteps = accel_d;
-                    motion_phase = deceleration;
-                }
-            case deceleration:
-                x_steps_taken++;
-                x_step.period(1.0/(freq_step + (((accel_d-1)-x_steps_taken) * freq_step)));
-                x_step.write(0.5);
-                if (x_steps_taken >= xDesiredSteps) {
+    if(remainingSteppersFlag & (1U << 1)){
+        volatile stepperInfo& s = steppers[1];
+        unsigned long currentDelay = s.di;
+        if ( s.stepCount < s.totalSteps ) {
+            s.stepFunc();
+            s.stepCount++;
+            s.stepPosition += s.dir;
+            if ( s.stepCount >= s.totalSteps ) {
+                s.movementDone = true;
+                remainingSteppersFlag &= ~(1 << 1);
+                if (!remainingSteppersFlag) {
                     stepperEN = 1;
-                    countSteps = 0;
-                    x_steps_taken = 0;
-                    xDesiredSteps = 0;
+                    return;
                 }
-            default: 
-                break;
-
+            }
         }
+
+        if ( s.rampUpStepCount == 0 ) {
+            s.n++;
+            s.d = s.d - (2 * s.d) / (4 * s.n + 1);
+            if ( s.d <= s.minStepInterval ) {
+            s.d = s.minStepInterval;
+            s.rampUpStepCount = s.stepCount;
+            }
+            if ( s.stepCount >= s.totalSteps / 2 ) {
+            s.rampUpStepCount = s.stepCount;
+            }
+            s.rampUpStepTime += s.d;
+        }
+        else if ( s.stepCount >= s.totalSteps - s.rampUpStepCount ) {
+            s.d = (s.d * (4 * s.n + 1)) / (4 * s.n + 1 - 2);
+            s.n--;
+        }
+
+        s.di = s.d * s.speedScale; // integer
+
+        //std::chrono::microseconds delay = std::chrono::microseconds(s.di) - (std::chrono::microseconds(currentDelay) - (xTimer.remaining_time()));;
+        
+        yTimer.attach(&timerCallbackY,s.di*1us);
+    }
+    else{
+        disableStepperInterrupt(2);
+        remainingSteppersFlag &= ~(1 << 1);
+        return;
     }
 }
-
 
 void timerCallbackZ(){
-	if(countSteps & (xDesiredSteps != 0)){
-        switch (motion_phase) {
-            case acceleration:
-                // Increment step count for axis Z
-                x_steps_taken++;
-                x_step.period(1.0/(freq_step + (x_steps_taken * freq_step)));
-                x_step.write(0.5);
-                if (x_steps_taken >= xDesiredSteps) {
-                    x_steps_taken = 0;
-                    xDesiredSteps = constVelocity_d;
-                    motion_phase = constantV;
-                }
-            case constantV:
-                x_steps_taken++;
-                if (x_steps_taken >= xDesiredSteps) {
-                    x_steps_taken = 0;
-                    xDesiredSteps = accel_d;
-                    motion_phase = deceleration;
-                }
-            case deceleration:
-                x_steps_taken++;
-                x_step.period(1.0/(freq_step + (((accel_d-1)-x_steps_taken) * freq_step)));
-                x_step.write(0.5);
-                if (x_steps_taken >= xDesiredSteps) {
+    if(remainingSteppersFlag & (1U << 2)){
+        volatile stepperInfo& s = steppers[2];
+        unsigned long currentDelay = s.di;
+        if ( s.stepCount < s.totalSteps ) {
+            s.stepFunc();
+            s.stepCount++;
+            s.stepPosition += s.dir;
+            if ( s.stepCount >= s.totalSteps ) {
+                s.movementDone = true;
+                remainingSteppersFlag &= ~(1 << 2);
+                if (!remainingSteppersFlag) {
                     stepperEN = 1;
-                    countSteps = 0;
-                    x_steps_taken = 0;
-                    xDesiredSteps = 0;
+                    return;
                 }
-            default: 
-                break;
-
+            }
         }
+
+        if ( s.rampUpStepCount == 0 ) {
+            s.n++;
+            s.d = s.d - (2 * s.d) / (4 * s.n + 1);
+            if ( s.d <= s.minStepInterval ) {
+            s.d = s.minStepInterval;
+            s.rampUpStepCount = s.stepCount;
+            }
+            if ( s.stepCount >= s.totalSteps / 2 ) {
+            s.rampUpStepCount = s.stepCount;
+            }
+            s.rampUpStepTime += s.d;
+        }
+        else if ( s.stepCount >= s.totalSteps - s.rampUpStepCount ) {
+            s.d = (s.d * (4 * s.n + 1)) / (4 * s.n + 1 - 2);
+            s.n--;
+        }
+
+        s.di = s.d * s.speedScale; // integer
+
+        //std::chrono::microseconds delay = std::chrono::microseconds(s.di) - (std::chrono::microseconds(currentDelay) - (xTimer.remaining_time()));;
+        
+        zTimer.attach(&timerCallbackZ,s.di*1us);
+    }
+    else{
+        disableStepperInterrupt(3);
+        remainingSteppersFlag &= ~(1 << 2);
+        return;
     }
 }
 
-void x_stepISR(){
-    motorQueueX.call(timerCallbackX);
-}
+// void x_stepISR(){
+//     motorQueueX.call(timerCallbackX);
+// }
 
-void y_stepISR(){
-    motorQueueY.call(timerCallbackY);
-}
+// void y_stepISR(){
+//     motorQueueY.call(timerCallbackY);
+// }
 
-void z_stepISR(){
-    motorQueueZ.call(timerCallbackZ);
-}
+// void z_stepISR(){
+//     motorQueueZ.call(timerCallbackZ);
+// }
 
