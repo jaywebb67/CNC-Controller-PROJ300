@@ -1,0 +1,12 @@
+../Inc/CMSIS/Include/core_cm4.h:1688:22:__NVIC_EnableIRQ	16	static
+../Inc/CMSIS/Include/core_cm4.h:1816:22:__NVIC_SetPriority	16	static
+../Src/steppers.c:28:6:init_stepper	24	static
+../Src/steppers.c:58:6:stepper_init	16	static
+../Src/steppers.c:189:6:set_PWMdutycycle	16	static
+../Src/steppers.c:216:6:setPWMfrequency	16	static
+../Src/steppers.c:245:6:move_axis_stepper_motor	16	static
+../Src/steppers.c:276:6:oneRevolution	24	static
+../Src/steppers.c:290:6:timerCallback	16	static
+../Src/steppers.c:330:6:TIM3_IRQHandler	8	static
+../Src/steppers.c:337:6:TIM4_IRQHandler	8	static
+../Src/steppers.c:344:6:TIM8_BRK_TIM12_IRQHandler	8	static

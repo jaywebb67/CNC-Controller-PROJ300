@@ -25,7 +25,7 @@
 
 
 #define UART_BAUDRATE	115200
-#define CLK				16000000
+#define CLK				45000000
 
 void uart3_tx_init(void);
 

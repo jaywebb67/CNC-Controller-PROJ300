@@ -1,0 +1,12 @@
+../Inc/CMSIS/Include/core_cm4.h:1688:22:__NVIC_EnableIRQ	2
+../Inc/CMSIS/Include/core_cm4.h:1816:22:__NVIC_SetPriority	2
+../Src/steppers.c:28:6:init_stepper	1
+../Src/steppers.c:58:6:stepper_init	1
+../Src/steppers.c:189:6:set_PWMdutycycle	6
+../Src/steppers.c:216:6:setPWMfrequency	6
+../Src/steppers.c:245:6:move_axis_stepper_motor	5
+../Src/steppers.c:276:6:oneRevolution	2
+../Src/steppers.c:290:6:timerCallback	12
+../Src/steppers.c:330:6:TIM3_IRQHandler	2
+../Src/steppers.c:337:6:TIM4_IRQHandler	2
+../Src/steppers.c:344:6:TIM8_BRK_TIM12_IRQHandler	2

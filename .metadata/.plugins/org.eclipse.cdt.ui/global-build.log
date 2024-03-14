@@ -1,21 +1,63 @@
-13:53:26 **** Incremental Build of configuration Debug for project UART ****
+00:27:18 **** Incremental Build of configuration Debug for project UART ****
 make -j20 all 
-arm-none-eabi-gcc "../Src/Gcode.c" -mcpu=cortex-m4 -std=gnu11 -g3 -DDEBUG -DSTM32 -DSTM32F429ZITx -DSTM32F4 -DNUCLEO_F429ZI -c -I../Inc -O0 -ffunction-sections -fdata-sections -Wall -fstack-usage -fcyclomatic-complexity -MMD -MP -MF"Src/Gcode.d" -MT"Src/Gcode.o" --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -o "Src/Gcode.o"
+arm-none-eabi-gcc "../Src/steppers.c" -mcpu=cortex-m4 -std=gnu11 -g3 -DDEBUG -DSTM32 -DSTM32F429ZITx -DSTM32F4 -DNUCLEO_F429ZI -c -I../Inc -O0 -ffunction-sections -fdata-sections -Wall -fstack-usage -fcyclomatic-complexity -MMD -MP -MF"Src/steppers.d" -MT"Src/steppers.o" --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -o "Src/steppers.o"
 arm-none-eabi-gcc -o "UART.elf" @"objects.list"   -mcpu=cortex-m4 -T"C:\Github\CNC-Controller-PROJ300\UART\STM32F429ZITX_FLASH.ld" --specs=nosys.specs -Wl,-Map="UART.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -u _printf_float -u _scanf_float -Wl,--start-group -lc -lm -Wl,--end-group
 Finished building target: UART.elf
  
 arm-none-eabi-size  UART.elf 
 arm-none-eabi-objdump -h -S UART.elf  > "UART.list"
    text	   data	    bss	    dec	    hex	filename
-  28036	    464	   1904	  30404	   76c4	UART.elf
+  26316	    468	   1932	  28716	   702c	UART.elf
 Finished building: default.size.stdout
  
 Finished building: UART.list
  
-13:53:30 **** Incremental Build of configuration Debug for project UART ****
+00:27:40 **** Incremental Build of configuration Debug for project UART ****
 make -j20 all 
 arm-none-eabi-size  UART.elf 
    text	   data	    bss	    dec	    hex	filename
-  28036	    464	   1904	  30404	   76c4	UART.elf
+  26316	    468	   1932	  28716	   702c	UART.elf
 Finished building: default.size.stdout
+ 
+14:19:22 **** Incremental Build of configuration Debug for project steppers ****
+make -j20 all 
+arm-none-eabi-gcc "../Core/Src/main.c" -mcpu=cortex-m4 -std=gnu11 -g3 -DDEBUG -DUSE_HAL_DRIVER -DSTM32F429xx -c -I../Core/Inc -I../Drivers/STM32F4xx_HAL_Driver/Inc -I../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I../Drivers/CMSIS/Include -O0 -ffunction-sections -fdata-sections -Wall -fstack-usage -fcyclomatic-complexity -MMD -MP -MF"Core/Src/main.d" -MT"Core/Src/main.o" --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -o "Core/Src/main.o"
+arm-none-eabi-gcc -o "steppers.elf" @"objects.list"   -mcpu=cortex-m4 -T"C:\Github\CNC-Controller-PROJ300\steppers\STM32F429ZITX_FLASH.ld" --specs=nosys.specs -Wl,-Map="steppers.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+Finished building target: steppers.elf
+ 
+arm-none-eabi-size  steppers.elf 
+arm-none-eabi-objdump -h -S steppers.elf  > "steppers.list"
+   text	   data	    bss	    dec	    hex	filename
+  11140	     20	   1788	  12948	   3294	steppers.elf
+Finished building: default.size.stdout
+ 
+Finished building: steppers.list
+ 
+14:25:21 **** Incremental Build of configuration Debug for project steppers ****
+make -j20 all 
+arm-none-eabi-gcc "../Core/Src/main.c" -mcpu=cortex-m4 -std=gnu11 -g3 -DDEBUG -DUSE_HAL_DRIVER -DSTM32F429xx -c -I../Core/Inc -I../Drivers/STM32F4xx_HAL_Driver/Inc -I../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I../Drivers/CMSIS/Include -O0 -ffunction-sections -fdata-sections -Wall -fstack-usage -fcyclomatic-complexity -MMD -MP -MF"Core/Src/main.d" -MT"Core/Src/main.o" --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -o "Core/Src/main.o"
+arm-none-eabi-gcc -o "steppers.elf" @"objects.list"   -mcpu=cortex-m4 -T"C:\Github\CNC-Controller-PROJ300\steppers\STM32F429ZITX_FLASH.ld" --specs=nosys.specs -Wl,-Map="steppers.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+Finished building target: steppers.elf
+ 
+arm-none-eabi-size  steppers.elf 
+arm-none-eabi-objdump -h -S steppers.elf  > "steppers.list"
+   text	   data	    bss	    dec	    hex	filename
+  11128	     20	   1788	  12936	   3288	steppers.elf
+Finished building: default.size.stdout
+ 
+Finished building: steppers.list
+ 
+14:27:42 **** Incremental Build of configuration Debug for project steppers ****
+make -j20 all 
+arm-none-eabi-gcc "../Core/Src/main.c" -mcpu=cortex-m4 -std=gnu11 -g3 -DDEBUG -DUSE_HAL_DRIVER -DSTM32F429xx -c -I../Core/Inc -I../Drivers/STM32F4xx_HAL_Driver/Inc -I../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I../Drivers/CMSIS/Include -O0 -ffunction-sections -fdata-sections -Wall -fstack-usage -fcyclomatic-complexity -MMD -MP -MF"Core/Src/main.d" -MT"Core/Src/main.o" --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -o "Core/Src/main.o"
+arm-none-eabi-gcc -o "steppers.elf" @"objects.list"   -mcpu=cortex-m4 -T"C:\Github\CNC-Controller-PROJ300\steppers\STM32F429ZITX_FLASH.ld" --specs=nosys.specs -Wl,-Map="steppers.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+Finished building target: steppers.elf
+ 
+arm-none-eabi-size  steppers.elf 
+arm-none-eabi-objdump -h -S steppers.elf  > "steppers.list"
+   text	   data	    bss	    dec	    hex	filename
+  11152	     20	   1788	  12960	   32a0	steppers.elf
+Finished building: default.size.stdout
+ 
+Finished building: steppers.list
  

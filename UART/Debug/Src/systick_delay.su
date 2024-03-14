@@ -1,0 +1,6 @@
+../Inc/CMSIS/Include/core_cm4.h:1816:22:__NVIC_SetPriority	16	static
+../Inc/CMSIS/Include/core_cm4.h:2022:26:SysTick_Config	16	static
+../Src/systick_delay.c:15:6:SysTick_Init	8	static
+../Src/systick_delay.c:23:6:delay_nms	24	static,ignoring_inline_asm
+../Src/systick_delay.c:32:6:delay_nus	24	static,ignoring_inline_asm
+../Src/systick_delay.c:41:6:SysTick_Handler	4	static

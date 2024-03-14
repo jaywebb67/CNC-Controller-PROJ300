@@ -1,9 +1,10 @@
 /*
+
  * Gcode.c
  *
  *  Created on: Dec 20, 2023
  *      Author: jaywe
- */
+
 
 #include "Gcode.h"
 
@@ -13,12 +14,38 @@
 #include <string.h>
 
 
-void parse_gcode(char *line) {
-    char *token;
-    //char delimiters[] = " "; // Delimiters include space, M, X, Y, Z
-    token = strtok(line," ");
-    while (token != NULL) {
-        if (token[0] == 'G') {
+void parse_gcode(char *line, line_t line_modals) {
+
+	uint8_t char_counter = 0;
+
+    while (char_counter <= MAX_CHARACTER_PER_LINE) {
+    	switch(line[char_counter]){
+			case 'G':
+				break;
+			case 'M':
+				break;
+			case 'R':
+				break;
+			case 'D':
+				break;
+			case 'F':
+				break;
+			case 'S':
+				break;
+			case 'T':
+				break;
+			case 'N':
+				break;
+			case 'X':
+				break;
+			case 'Y':
+				break;
+			case 'Z':
+				break;
+			default:
+
+    	}
+        if (line[char_counter] == 'G') {
             // Handle G-code command
             int code = atoi(&token[1]);
             switch (code) {
@@ -71,3 +98,4 @@ void parse_gcode(char *line) {
 
 
 
+*/

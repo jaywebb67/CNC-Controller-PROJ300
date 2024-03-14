@@ -1,0 +1,271 @@
+/*
+ * steppers.c
+ *
+ *  Created on: Feb 21, 2024
+ *      Author: jaywe
+ */
+
+#include "steppers.h"
+#include "UART.h"
+#include <stdio.h>
+#include "CMSIS/Device/ST/STM32F4xx/Include/stm32f4xx.h"
+
+
+volatile uint32_t zStepElapsed = 0;
+
+volatile uint32_t yStepElapsed = 0;
+
+volatile uint32_t xStepElapsed = 0;
+
+volatile uint32_t xDesiredSteps = 0;
+
+volatile uint32_t yDesiredSteps = 0;
+
+volatile uint32_t zDesiredSteps = 0;
+
+volatile bool countSteps = 0;
+
+volatile int timerTrackVar = 0;
+
+void stepper_init(uint32_t frequency, uint8_t d){
+
+
+	/*1.Enable clock access to GPIOA*/
+	RCC->AHB1ENR |= GPIOBEN;
+
+	//clear pins corresponding to motor signals
+	GPIOB->MODER &= ~((3U<<(2*2))|(3U<<(2*14))|(3U<<(2*y_dir)) |(3U<<(2*x_dir)) |(3U<<(2*z_step)) |(3U<<(2*z_dir)) |(3U<<(2*y_step)) |(3U<<(2*x_step))|(3U<<(2*stepperEN)));
+
+
+	//set motor dir pins and stepperEN to output
+	GPIOB->MODER |=	 (1U<<(2*2))|(1U<<(1*14))|(1U<<(1*y_dir))|(1U<<(2*x_dir))|(1U<<(2*z_dir))|(1U<<(2*stepperEN));
+
+	//set motor step pins to AF
+	GPIOB->MODER |=	 (2U<<(1*z_step))|(2U<<(2*y_step))|(1U<<(2*x_step));
+
+	GPIOB->OTYPER &= ~(1U << stepperEN);
+	GPIOB->OTYPER |= (1U << stepperEN);
+
+	//clear pin output speed
+	GPIOB->OSPEEDR &= ~((3U<<(2*2))|(3U<<(2*14))|(3U<<(2*y_dir)) |(3U<<(2*x_dir)) |(3U<<(2*z_step)) |(3U<<(2*z_dir)) |(3U<<(2*y_step)) |(3U<<(2*x_step))|(3U<<(2*stepperEN)));
+
+	//set pins to high speed
+	GPIOB->OSPEEDR |= (3U<<(2*2))|(3U<<(2*14))|(3U<<(2*y_dir)) |(3U<<(2*x_dir)) |(3U<<(2*z_step)) |(3U<<(2*z_dir)) |(3U<<(2*y_step)) |(3U<<(2*x_step))|(3U<<(2*stepperEN));
+
+	//no internal pull up
+	GPIOB->PUPDR &= ~((3U<<(2*2))|(3U<<(2*y_dir)) |(3U<<(2*x_dir)) |(3U<<(2*z_step)) |(3U<<(2*z_dir)) |(3U<<(2*y_step)) |(3U<<(2*x_step))|(3U<<(2*stepperEN)));
+
+	GPIOB->ODR |= (1U << stepperEN);
+
+	// set step pins to timer functions - pin 5 located in AF low reg,
+	GPIOB->AFR[0] &= ~(15U<<(4*z_step));
+	// TIM3 channel 2 = AF2
+	GPIOB->AFR[0] |= (2U<<(4*z_step));
+	//pin 8 & 15 located in AF high register
+	GPIOB->AFR[1] &= ~((15U<<(4*(y_step-8)))|(15U<<(4*(x_step-8))));
+	// TIM4 channel 3 = AF2, TIM12 channel 2 = AF9
+	GPIOB->AFR[1] |= (2U<<(4*(y_step-8)))|(9U<<(4*(x_step-8)));
+
+	//init timers for the step signals of each axis
+	RCC->APB1ENR |= (1U << TIM3EN)|(1U << TIM4EN)|(1U << TIM12EN);
+
+	//set prescalers to 0
+	TIM3->PSC = 1-1;
+	TIM4->PSC = 1-1;
+	TIM12->PSC = 1-1;
+
+	// APB1 Timer clock/3600 = 25kHz
+	TIM3->ARR = (APB1_TIM_FREQ / frequency) - 1;
+	TIM4->ARR = (APB1_TIM_FREQ / frequency) - 1;
+	TIM12->ARR = (APB1_TIM_FREQ / frequency) - 1;
+
+
+	//Clear timer mode
+	TIM3->CCMR2 &= ~(7U << 4);
+	TIM4->CCMR2 &= ~(7U << 4);
+	TIM12->CCMR1 &= ~(7U << 12);
+
+	//Set timer to PWM mode 1
+	TIM3->CCMR2 |= (6U << 4);
+	TIM4->CCMR2 |= (6U << 4);
+	TIM12->CCMR1 |= (6U << 12);
+
+	//Enable timer channels
+	TIM3->CCER |= (1U << 8);
+	TIM4->CCER |= (1U << 8);
+	TIM12->CCER |= (1U << 4);
+
+	// Enable timer interrupt generation
+	TIM3->DIER |= (1<<0);
+	TIM4->DIER |= (1<<0);
+    TIM12->DIER |= (1<<0);
+
+	// Enable TIM3 interrupt
+	NVIC_SetPriority(TIM3_IRQn, 0);
+	NVIC_EnableIRQ(TIM3_IRQn);
+
+	// Enable TIM4 interrupt
+	NVIC_SetPriority(TIM4_IRQn, 1);
+	NVIC_EnableIRQ(TIM4_IRQn);
+
+	// Enable TIM12 interrupt
+	NVIC_SetPriority(TIM8_BRK_TIM12_IRQn, 2);
+	NVIC_EnableIRQ(TIM8_BRK_TIM12_IRQn);
+
+	TIM3->CNT = 0;
+	TIM4->CNT = 0;
+	TIM12->CNT = 0;
+
+	TIM3->EGR |= (1<<0);
+	TIM4->EGR |= (1<<0);
+	TIM12->EGR |= (1<<0);
+
+	//enable clocks
+	TIM3->CR1 |= CR1_CEN;
+	TIM4->CR1 |= CR1_CEN;
+	TIM12->CR1 |= CR1_CEN;
+
+	TIM3->CCR2=(unsigned short)(d*(float)(TIM3->ARR)/100.0f);
+	TIM4->CCR3=(unsigned short)(d*(float)(TIM4->ARR)/100.0f);
+	TIM12->CCR2=(unsigned short)(d*(float)(TIM12->ARR)/100.0f);
+}
+
+
+void set_PWMdutycycle(uint8_t timr, uint32_t d){
+
+	if(d > 100){
+		d = 100;
+	}
+	else if(d < 0){
+		d = 0;
+	}
+
+	switch(timr){
+		case 3:
+			TIM3->CCR2=(unsigned short)(d*(float)(TIM3->ARR)/100.0f);
+			break;
+		case 4:
+			TIM4->CCR3=(unsigned short)(d*(float)(TIM4->ARR)/100.0f);
+			break;
+		case 12:
+			TIM12->CCR2=(unsigned short)(d*(float)(TIM12->ARR)/100.0f);
+			break;
+		default:
+			break;
+	}
+}
+
+void setPWMfrequency(uint8_t timr, uint32_t frequency){
+
+	if (frequency > 500000){
+		frequency = 500000;
+	}
+	else if(frequency < 0){
+		frequency = 1;
+	}
+	switch(timr){
+		case 3:
+			TIM3->ARR = (APB1_TIM_FREQ / frequency) - 1;
+			TIM3->CCR2=(unsigned short)(50*(float)(TIM3->ARR)/100.0f);
+			break;
+		case 4:
+			TIM4->ARR = (APB1_TIM_FREQ / frequency) - 1;
+			TIM4->CCR3=(unsigned short)(50*(float)(TIM4->ARR)/100.0f);
+			break;
+		case 12:
+			TIM12->ARR = (APB1_TIM_FREQ / frequency) - 1;
+			TIM12->CCR2=(unsigned short)(50*(float)(TIM12->ARR)/100.0f);
+			break;
+		default:
+			break;
+	}
+}
+
+void move_axis_stepper_motor(int axis, uint32_t steps){
+
+//	axis = toupper(axis);
+	switch(axis){
+		case 1:
+			set_PWMdutycycle(3,0);
+			set_PWMdutycycle(4,0);
+			xDesiredSteps = steps;
+			xStepElapsed = 0;
+			break;
+		case 2:
+			set_PWMdutycycle(3,0);
+			set_PWMdutycycle(12,0);
+			yDesiredSteps = steps;
+			yStepElapsed = 0;
+			break;
+		case 3:
+			set_PWMdutycycle(4,0);
+			set_PWMdutycycle(12,0);
+			zDesiredSteps = steps;
+			zStepElapsed = 0;
+			break;
+		default:
+			break;
+
+	}
+	GPIOB->ODR &= ~(1U << stepperEN);
+	countSteps = 1;
+
+}
+
+void oneRevolution(uint8_t microstepping,int axis){
+
+	uint32_t steps_per_revolution = 200;
+	uint32_t steps =0;
+
+	if(microstepping ==0){
+		microstepping = 1;
+	}
+
+	steps = steps_per_revolution * microstepping;
+	move_axis_stepper_motor(axis,steps);
+
+}
+
+
+void TIM3_IRQHandler(){
+    if ((TIM3->SR & TIM_SR_UIF) && countSteps) {
+        // Increment step count for axis Z
+        zStepElapsed++;
+        if (zStepElapsed >= zDesiredSteps) {
+            // Perform necessary action when desired steps are reached
+        	GPIOB->ODR |= (1U << stepperEN);
+        	countSteps = 0;
+        }
+    }
+    TIM3->SR &= ~TIM_SR_UIF; // Clear update interrupt flag
+}
+
+void TIM4_IRQHandler(){
+	timerTrackVar  ^= 1;
+	if ((TIM4->SR & TIM_SR_UIF) && countSteps) {
+		// Increment step count for axis Z
+		yStepElapsed++;
+		if (yStepElapsed >= yDesiredSteps) {
+			// Perform necessary action when desired steps are reached
+			GPIOB->ODR |= (1U << stepperEN);
+			countSteps = 0;
+		}
+	}
+	TIM4->SR &= ~TIM_SR_UIF; // Clear update interrupt flag
+
+}
+
+void TIM8_BRK_TIM12_IRQHandler(){
+
+	if ((TIM12->SR & TIM_SR_UIF) && countSteps) {
+		// Increment step count for axis Z
+		xStepElapsed++;
+		if (xStepElapsed >= xDesiredSteps) {
+			// Perform necessary action when desired steps are reached
+			GPIOB->ODR |= (1U << stepperEN);
+			countSteps = 0;
+		}
+	}
+	TIM12->SR &= ~TIM_SR_UIF; // Clear update interrupt flag
+}
+
