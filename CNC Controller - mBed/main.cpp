@@ -66,8 +66,8 @@ int main()
             printf("%ld\n\r",steps);
 
             prepareMovement(axis, steps);
-            prepareMovement(2, 2* steps);
-            prepareMovement(3, 3* steps);
+            // prepareMovement(2, 2* steps);
+            // prepareMovement(3, 3* steps);
             runAndWait();
         }
         else{

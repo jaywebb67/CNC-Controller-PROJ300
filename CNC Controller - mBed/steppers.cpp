@@ -17,14 +17,15 @@ DigitalOut y_step(ystep_pin,0);
 Ticker zTimer;
 DigitalOut z_step(zstep_pin,0);
 
+Mutex stepperInfoLock;
 
-// Thread motorMovementX;
+Thread motorMovementX(osPriorityRealtime);
 // EventQueue motorQueueX;
 
-// Thread motorMovementY;
+Thread motorMovementY(osPriorityRealtime);
 // EventQueue motorQueueY;
 
-// Thread motorMovementZ;
+Thread motorMovementZ(osPriorityRealtime);
 // EventQueue motorQueueZ;
 
 volatile stepperInfo steppers[stepperNumber];
@@ -32,8 +33,13 @@ volatile uint8_t remainingSteppersFlag = 0;
 
 
 
+void motorXThread();
 void timerCallbackX();
+
+void motorYThread();
 void timerCallbackY();
+
+void motorZThread();
 void timerCallbackZ();
 
 void xStep() {
@@ -99,9 +105,9 @@ void stepperInit(volatile int accel,volatile int max_speed){
     stepperEN = 1;
 
 
-    // motorMovementX.start(callback(&motorQueueX, &EventQueue::dispatch_forever));
-    // motorMovementY.start(callback(&motorQueueY, &EventQueue::dispatch_forever));
-    // motorMovementZ.start(callback(&motorQueueZ, &EventQueue::dispatch_forever));
+    motorMovementX.start(motorXThread);
+    motorMovementY.start(motorYThread);
+    motorMovementZ.start(motorZThread);
 }
 
 void resetStepper(volatile stepperInfo& si) {
@@ -210,160 +216,178 @@ void disableStepperInterrupt(int axis){
 }
 
 
-void timerCallbackX(){
-    if(remainingSteppersFlag & (1U << 0)){
-        volatile stepperInfo& s = steppers[0];
-        unsigned long currentDelay = s.di;
-        if ( s.stepCount < s.totalSteps ) {
-            s.stepFunc();
-            s.stepCount++;
-            s.stepPosition += s.dir;
-            if ( s.stepCount >= s.totalSteps ) {
-                s.movementDone = true;
-                remainingSteppersFlag &= ~(1 << 0);
-                if (!remainingSteppersFlag) {
-                    stepperEN = 1;
-                    return;
+void motorXThread(){
+    stepperInfoLock.lock();
+    volatile stepperInfo& s = steppers[0];
+    stepperInfoLock.unlock();
+    // unsigned long currentDelay = s.di;
+    while(true){
+        ThisThread::flags_wait_any(1);
+        xTimer.detach();
+        if(remainingSteppersFlag & (1U << 0)){
+            //currentDelay = s.di;
+            stepperInfoLock.lock();
+            if ( s.stepCount < s.totalSteps ) {
+                s.stepFunc();
+                s.stepCount++;
+                s.stepPosition += s.dir;
+                if ( s.stepCount >= s.totalSteps ) {
+                    s.movementDone = true;
+                    stepperInfoLock.unlock();
+                    ThisThread::flags_clear(1);
+                    remainingSteppersFlag &= ~(1 << 0);
+                    if (!remainingSteppersFlag) {
+                        stepperEN = 1;
+                        return;
+                    }
                 }
             }
-        }
-
-        if ( s.rampUpStepCount == 0 ) {
-            s.n++;
-            s.d = s.d - (2 * s.d) / (4 * s.n + 1);
-            if ( s.d <= s.minStepInterval ) {
-            s.d = s.minStepInterval;
-            s.rampUpStepCount = s.stepCount;
+            if ( s.rampUpStepCount == 0 ) {
+                s.n++;
+                s.d = s.d - (2 * s.d) / (4 * s.n + 1);
+                if ( s.d <= s.minStepInterval ) {
+                s.d = s.minStepInterval;
+                s.rampUpStepCount = s.stepCount;
+                }
+                if ( s.stepCount >= s.totalSteps / 2 ) {
+                s.rampUpStepCount = s.stepCount;
+                }
+                s.rampUpStepTime += s.d;
             }
-            if ( s.stepCount >= s.totalSteps / 2 ) {
-            s.rampUpStepCount = s.stepCount;
+            else if ( s.stepCount >= s.totalSteps - s.rampUpStepCount ) {
+                s.d = (s.d * (4 * s.n + 1)) / (4 * s.n + 1 - 2);
+                s.n--;
             }
-            s.rampUpStepTime += s.d;
+            s.di = s.d * s.speedScale; // integer
+            xTimer.attach(&timerCallbackX,s.di*1us);
+            stepperInfoLock.unlock();
+            ThisThread::flags_clear(1);
         }
-        else if ( s.stepCount >= s.totalSteps - s.rampUpStepCount ) {
-            s.d = (s.d * (4 * s.n + 1)) / (4 * s.n + 1 - 2);
-            s.n--;
+        else{
+            disableStepperInterrupt(1);
+            ThisThread::flags_clear(1);
+            remainingSteppersFlag &= ~(1 << 0);
+            return;
         }
-
-        s.di = s.d * s.speedScale; // integer
-
-        //std::chrono::microseconds delay = std::chrono::microseconds(s.di) - (std::chrono::microseconds(currentDelay) - (xTimer.remaining_time()));;
-        
-        xTimer.attach(&timerCallbackX,s.di*1us);
-    }
-    else{
-        disableStepperInterrupt(1);
-        remainingSteppersFlag &= ~(1 << 0);
-        return;
     }
 }
 
-
-void timerCallbackY(){
-    if(remainingSteppersFlag & (1U << 1)){
-        volatile stepperInfo& s = steppers[1];
-        unsigned long currentDelay = s.di;
-        if ( s.stepCount < s.totalSteps ) {
-            s.stepFunc();
-            s.stepCount++;
-            s.stepPosition += s.dir;
-            if ( s.stepCount >= s.totalSteps ) {
-                s.movementDone = true;
-                remainingSteppersFlag &= ~(1 << 1);
-                if (!remainingSteppersFlag) {
-                    stepperEN = 1;
-                    return;
+void motorYThread(){
+    stepperInfoLock.lock();
+    volatile stepperInfo& s = steppers[1];
+    stepperInfoLock.unlock();
+    while(true){
+        ThisThread::flags_wait_any(2);
+        yTimer.detach();
+        if(remainingSteppersFlag & (1U << 1)){
+            stepperInfoLock.lock();
+            if ( s.stepCount < s.totalSteps ) {
+                s.stepFunc();
+                s.stepCount++;
+                s.stepPosition += s.dir;
+                if ( s.stepCount >= s.totalSteps ) {
+                    s.movementDone = true;
+                    stepperInfoLock.unlock();
+                    ThisThread::flags_clear(2);
+                    remainingSteppersFlag &= ~(1 << 1);
+                    if (!remainingSteppersFlag) {
+                        stepperEN = 1;
+                        return;
+                    }
                 }
             }
-        }
-
-        if ( s.rampUpStepCount == 0 ) {
-            s.n++;
-            s.d = s.d - (2 * s.d) / (4 * s.n + 1);
-            if ( s.d <= s.minStepInterval ) {
-            s.d = s.minStepInterval;
-            s.rampUpStepCount = s.stepCount;
+            if ( s.rampUpStepCount == 0 ) {
+                s.n++;
+                s.d = s.d - (2 * s.d) / (4 * s.n + 1);
+                if ( s.d <= s.minStepInterval ) {
+                s.d = s.minStepInterval;
+                s.rampUpStepCount = s.stepCount;
+                }
+                if ( s.stepCount >= s.totalSteps / 2 ) {
+                s.rampUpStepCount = s.stepCount;
+                }
+                s.rampUpStepTime += s.d;
             }
-            if ( s.stepCount >= s.totalSteps / 2 ) {
-            s.rampUpStepCount = s.stepCount;
+            else if ( s.stepCount >= s.totalSteps - s.rampUpStepCount ) {
+                s.d = (s.d * (4 * s.n + 1)) / (4 * s.n + 1 - 2);
+                s.n--;
             }
-            s.rampUpStepTime += s.d;
+            s.di = s.d * s.speedScale; // integer
+            yTimer.attach(&timerCallbackY,s.di*1us);
+            stepperInfoLock.unlock();
+            ThisThread::flags_clear(2);
         }
-        else if ( s.stepCount >= s.totalSteps - s.rampUpStepCount ) {
-            s.d = (s.d * (4 * s.n + 1)) / (4 * s.n + 1 - 2);
-            s.n--;
+        else{
+            disableStepperInterrupt(2);
+            ThisThread::flags_clear(2);
+            remainingSteppersFlag &= ~(1 << 1);
+            return;
         }
-
-        s.di = s.d * s.speedScale; // integer
-
-        //std::chrono::microseconds delay = std::chrono::microseconds(s.di) - (std::chrono::microseconds(currentDelay) - (xTimer.remaining_time()));;
-        
-        yTimer.attach(&timerCallbackY,s.di*1us);
     }
-    else{
-        disableStepperInterrupt(2);
-        remainingSteppersFlag &= ~(1 << 1);
-        return;
+}
+
+void motorZThread(){
+    stepperInfoLock.lock();
+    volatile stepperInfo& s = steppers[2];
+    stepperInfoLock.unlock();
+    while(true){
+        ThisThread::flags_wait_any(4);
+        zTimer.detach();
+        if(remainingSteppersFlag & (1U << 2)){
+            stepperInfoLock.lock();
+            if ( s.stepCount < s.totalSteps ) {
+                s.stepFunc();
+                s.stepCount++;
+                s.stepPosition += s.dir;
+                if ( s.stepCount >= s.totalSteps ) {
+                    s.movementDone = true;
+                    stepperInfoLock.unlock();
+                    ThisThread::flags_clear(4);
+                    remainingSteppersFlag &= ~(1 << 2);
+                    if (!remainingSteppersFlag) {
+                        stepperEN = 1;
+                        return;
+                    }
+                }
+            }
+            if ( s.rampUpStepCount == 0 ) {
+                s.n++;
+                s.d = s.d - (2 * s.d) / (4 * s.n + 1);
+                if ( s.d <= s.minStepInterval ) {
+                s.d = s.minStepInterval;
+                s.rampUpStepCount = s.stepCount;
+                }
+                if ( s.stepCount >= s.totalSteps / 2 ) {
+                s.rampUpStepCount = s.stepCount;
+                }
+                s.rampUpStepTime += s.d;
+            }
+            else if ( s.stepCount >= s.totalSteps - s.rampUpStepCount ) {
+                s.d = (s.d * (4 * s.n + 1)) / (4 * s.n + 1 - 2);
+                s.n--;
+            }
+            s.di = s.d * s.speedScale; // integer
+            zTimer.attach(&timerCallbackZ,s.di*1us);
+            stepperInfoLock.unlock();
+            ThisThread::flags_clear(4);
+        }
+        else{
+            disableStepperInterrupt(3);
+            ThisThread::flags_clear(4);
+            remainingSteppersFlag &= ~(1 << 2);
+            return;
+        }
     }
+}
+
+void timerCallbackX(){
+    motorMovementX.flags_set(1);
+}
+
+void timerCallbackY(){
+    motorMovementY.flags_set(2);
 }
 
 void timerCallbackZ(){
-    if(remainingSteppersFlag & (1U << 2)){
-        volatile stepperInfo& s = steppers[2];
-        unsigned long currentDelay = s.di;
-        if ( s.stepCount < s.totalSteps ) {
-            s.stepFunc();
-            s.stepCount++;
-            s.stepPosition += s.dir;
-            if ( s.stepCount >= s.totalSteps ) {
-                s.movementDone = true;
-                remainingSteppersFlag &= ~(1 << 2);
-                if (!remainingSteppersFlag) {
-                    stepperEN = 1;
-                    return;
-                }
-            }
-        }
-
-        if ( s.rampUpStepCount == 0 ) {
-            s.n++;
-            s.d = s.d - (2 * s.d) / (4 * s.n + 1);
-            if ( s.d <= s.minStepInterval ) {
-            s.d = s.minStepInterval;
-            s.rampUpStepCount = s.stepCount;
-            }
-            if ( s.stepCount >= s.totalSteps / 2 ) {
-            s.rampUpStepCount = s.stepCount;
-            }
-            s.rampUpStepTime += s.d;
-        }
-        else if ( s.stepCount >= s.totalSteps - s.rampUpStepCount ) {
-            s.d = (s.d * (4 * s.n + 1)) / (4 * s.n + 1 - 2);
-            s.n--;
-        }
-
-        s.di = s.d * s.speedScale; // integer
-
-        //std::chrono::microseconds delay = std::chrono::microseconds(s.di) - (std::chrono::microseconds(currentDelay) - (xTimer.remaining_time()));;
-        
-        zTimer.attach(&timerCallbackZ,s.di*1us);
-    }
-    else{
-        disableStepperInterrupt(3);
-        remainingSteppersFlag &= ~(1 << 2);
-        return;
-    }
+    motorMovementY.flags_set(4);
 }
-
-// void x_stepISR(){
-//     motorQueueX.call(timerCallbackX);
-// }
-
-// void y_stepISR(){
-//     motorQueueY.call(timerCallbackY);
-// }
-
-// void z_stepISR(){
-//     motorQueueZ.call(timerCallbackZ);
-// }
-
