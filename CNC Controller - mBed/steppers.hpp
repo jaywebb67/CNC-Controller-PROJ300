@@ -49,7 +49,8 @@ struct stepperInfo {
   // per iteration variables (potentially changed every interrupt)
   volatile unsigned int n;                 // index in acceleration curve, used to calculate next interval
   volatile float d;                        // current interval length
-  volatile unsigned long di;               // above variable truncated
+  volatile unsigned long accel_di[2000];               // above variable truncated
+  volatile unsigned long decel_di[2000];               // above variable truncated
   volatile unsigned int stepCount;         // number of steps completed in current movement
 };
 

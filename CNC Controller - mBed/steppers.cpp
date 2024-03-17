@@ -19,28 +19,29 @@ DigitalOut z_step(zstep_pin,0);
 
 Mutex stepperInfoLock;
 
-Thread motorMovementX(osPriorityRealtime);
-// EventQueue motorQueueX;
+Thread motorThreadX(osPriorityRealtime);
+EventQueue motorQueueX;
 
-Thread motorMovementY(osPriorityRealtime);
-// EventQueue motorQueueY;
+Thread motorThreadY(osPriorityRealtime);
+EventQueue motorQueueY;
 
-Thread motorMovementZ(osPriorityRealtime);
-// EventQueue motorQueueZ;
+Thread motorThreadZ(osPriorityRealtime);
+EventQueue motorQueueZ;
 
+Thread printThread;
+EventQueue printQueue;
+
+EventFlags motorFlag;
 volatile stepperInfo steppers[stepperNumber];
 volatile uint8_t remainingSteppersFlag = 0;
 
 
+void motorXMovement();
 
-void motorXThread();
-void timerCallbackX();
 
-void motorYThread();
-void timerCallbackY();
+void motorYMovement();
 
-void motorZThread();
-void timerCallbackZ();
+void motorZMovement();
 
 void xStep() {
   Xstep_HIGH
@@ -105,15 +106,17 @@ void stepperInit(volatile int accel,volatile int max_speed){
     stepperEN = 1;
 
 
-    motorMovementX.start(motorXThread);
-    motorMovementY.start(motorYThread);
-    motorMovementZ.start(motorZThread);
+    motorThreadX.start(callback(&motorQueueX, &EventQueue::dispatch_forever));
+    motorThreadY.start(callback(&motorQueueY, &EventQueue::dispatch_forever));
+    motorThreadZ.start(callback(&motorQueueZ, &EventQueue::dispatch_forever));
+    printThread.start(callback(&printQueue, &EventQueue::dispatch_forever));
 }
 
 void resetStepper(volatile stepperInfo& si) {
     si.c0 = si.acceleration;
     si.d = si.c0;
-    si.di = si.d;
+    si.accel_di[0] = si.d;
+    si.decel_di[0] = si.d;
     si.stepCount = 0;
     si.n = 0;
     si.rampUpStepCount = 0;
@@ -183,211 +186,197 @@ void adjustSpeedScales() {
   }
 }
 
+void calculateAccelerationArray(){
+    for (int i =0; i<stepperNumber; i++){
+        volatile stepperInfo& s = steppers[i];
+        if(!((1U<<i)&remainingSteppersFlag)){
+            continue;
+        }
+        s.rampUpStepTime += s.accel_di[0];
+        while ( s.rampUpStepCount == 0 ) {
+            s.n++;
+            s.d = s.d - (2 * s.d) / (4 * s.n + 1);
+            s.accel_di[s.n] = s.d * s.speedScale; // integer
+            if ( s.d <= s.minStepInterval ) {
+                s.d = s.minStepInterval;
+                s.rampUpStepCount = s.n;
+            }
+            if ( s.n >= s.totalSteps / 2 ) {
+                s.rampUpStepCount = s.n;
+            }
+            s.rampUpStepTime += s.d;
+        }
+
+        for(int j = s.n; j>=1;j--){
+            s.d = (s.d * (4 * j + 1)) / (4 * i + j - 2);
+            if ( s.d >= s.c0 ) {
+                s.d = s.c0;
+            }
+            s.decel_di[j] = s.d * s.speedScale;
+        }
+    }
+}
 
 void runAndWait() {
     stepperEN = 0;
     adjustSpeedScales();
-    xTimer.attach(&timerCallbackX, steppers[0].di*1us);
-    yTimer.attach(&timerCallbackY, steppers[1].di*1us);
-    zTimer.attach(&timerCallbackZ, steppers[2].di*1us); 
+    calculateAccelerationArray();
+    motorQueueX.call(motorXMovement);
+    motorQueueY.call(motorYMovement);
+    motorQueueZ.call(motorZMovement);
+    wait_us(10);
+    motorFlag.set(1);
     while(remainingSteppersFlag){};
     return;
 }
 
-void disableStepperInterrupt(int axis){
 
-    switch(axis){
-        case 1:
-            xTimer.detach();
-            break;
-        case 2:
-            yTimer.detach();
-            break;
-        case 3:
-            zTimer.detach();
-            break;
-        default:
-            xTimer.detach();
-            yTimer.detach();
-            zTimer.detach();
-            break;
-    }  
-    return; 
-}
-
-
-void motorXThread(){
+void motorXMovement(){
     stepperInfoLock.lock();
     volatile stepperInfo& s = steppers[0];
     stepperInfoLock.unlock();
-    // unsigned long currentDelay = s.di;
-    while(true){
-        ThisThread::flags_wait_any(1);
-        xTimer.detach();
-        if(remainingSteppersFlag & (1U << 0)){
-            //currentDelay = s.di;
-            stepperInfoLock.lock();
-            if ( s.stepCount < s.totalSteps ) {
-                s.stepFunc();
-                s.stepCount++;
-                s.stepPosition += s.dir;
-                if ( s.stepCount >= s.totalSteps ) {
-                    s.movementDone = true;
-                    stepperInfoLock.unlock();
-                    ThisThread::flags_clear(1);
-                    remainingSteppersFlag &= ~(1 << 0);
-                    if (!remainingSteppersFlag) {
-                        stepperEN = 1;
-                        return;
-                    }
-                }
-            }
-            if ( s.rampUpStepCount == 0 ) {
-                s.n++;
-                s.d = s.d - (2 * s.d) / (4 * s.n + 1);
-                if ( s.d <= s.minStepInterval ) {
-                s.d = s.minStepInterval;
-                s.rampUpStepCount = s.stepCount;
-                }
-                if ( s.stepCount >= s.totalSteps / 2 ) {
-                s.rampUpStepCount = s.stepCount;
-                }
-                s.rampUpStepTime += s.d;
-            }
-            else if ( s.stepCount >= s.totalSteps - s.rampUpStepCount ) {
-                s.d = (s.d * (4 * s.n + 1)) / (4 * s.n + 1 - 2);
-                s.n--;
-            }
-            s.di = s.d * s.speedScale; // integer
-            xTimer.attach(&timerCallbackX,s.di*1us);
-            stepperInfoLock.unlock();
-            ThisThread::flags_clear(1);
+
+    if(remainingSteppersFlag & (1U << 0)){
+        //currentDelay = s.di;
+        if(!motorFlag.wait_all_for(1, 1s)){
+            printQueue.call(printf,"Error motor flag not set for motor operation! System restarting...");
+            system_reset();
         }
-        else{
-            disableStepperInterrupt(1);
-            ThisThread::flags_clear(1);
-            remainingSteppersFlag &= ~(1 << 0);
-            return;
+        for (int i = 0; i<=s.rampUpStepCount; i++){
+            Xstep_HIGH
+            Xstep_LOW
+            s.stepCount++;
+            s.stepPosition += s.dir;
+            wait_us(s.accel_di[i]);
         }
+        printf("%d X steps accel\n\r",s.stepCount);
+        for (int i = 0; i<(s.totalSteps - 2*(s.rampUpStepCount+1)); i++){
+            Xstep_HIGH
+            Xstep_LOW
+            s.stepCount++;
+            s.stepPosition += s.dir;
+            wait_us(s.minStepInterval);
+        }
+        printf("%d X steps constant\n\r",s.stepCount);
+        for (int i = s.rampUpStepCount;i>=0;i--){
+            Xstep_HIGH
+            Xstep_LOW
+            s.stepCount++;
+            s.stepPosition += s.dir;
+            wait_us(s.decel_di[i]);
+            if ( s.stepCount >= s.totalSteps ) {
+                printf("%d X steps decel\n\r",s.stepCount);
+                s.movementDone = true;
+                remainingSteppersFlag &= ~(1 << 0);
+                if (!remainingSteppersFlag) {
+                    stepperEN = 1;
+                    return;
+                }
+            }
+        }
+    }
+    else{
+        remainingSteppersFlag &= ~(1 << 0);
+        return;
     }
 }
 
-void motorYThread(){
+void motorYMovement(){
     stepperInfoLock.lock();
     volatile stepperInfo& s = steppers[1];
     stepperInfoLock.unlock();
-    while(true){
-        ThisThread::flags_wait_any(2);
-        yTimer.detach();
-        if(remainingSteppersFlag & (1U << 1)){
-            stepperInfoLock.lock();
-            if ( s.stepCount < s.totalSteps ) {
-                s.stepFunc();
-                s.stepCount++;
-                s.stepPosition += s.dir;
-                if ( s.stepCount >= s.totalSteps ) {
-                    s.movementDone = true;
-                    stepperInfoLock.unlock();
-                    ThisThread::flags_clear(2);
-                    remainingSteppersFlag &= ~(1 << 1);
-                    if (!remainingSteppersFlag) {
-                        stepperEN = 1;
-                        return;
-                    }
-                }
-            }
-            if ( s.rampUpStepCount == 0 ) {
-                s.n++;
-                s.d = s.d - (2 * s.d) / (4 * s.n + 1);
-                if ( s.d <= s.minStepInterval ) {
-                s.d = s.minStepInterval;
-                s.rampUpStepCount = s.stepCount;
-                }
-                if ( s.stepCount >= s.totalSteps / 2 ) {
-                s.rampUpStepCount = s.stepCount;
-                }
-                s.rampUpStepTime += s.d;
-            }
-            else if ( s.stepCount >= s.totalSteps - s.rampUpStepCount ) {
-                s.d = (s.d * (4 * s.n + 1)) / (4 * s.n + 1 - 2);
-                s.n--;
-            }
-            s.di = s.d * s.speedScale; // integer
-            yTimer.attach(&timerCallbackY,s.di*1us);
-            stepperInfoLock.unlock();
-            ThisThread::flags_clear(2);
+
+    if(remainingSteppersFlag & (1U << 1)){
+        //currentDelay = s.di;
+        if(!motorFlag.wait_all_for(1, 1s)){
+            printQueue.call(printf,"Error motor flag not set for motor operation! System restarting...");
+            system_reset();
         }
-        else{
-            disableStepperInterrupt(2);
-            ThisThread::flags_clear(2);
-            remainingSteppersFlag &= ~(1 << 1);
-            return;
+        for (int i = 0; i<=s.rampUpStepCount; i++){
+            Ystep_HIGH
+            Ystep_LOW
+            s.stepCount++;
+            s.stepPosition += s.dir;
+            wait_us(s.accel_di[i]);
         }
+        printf("%d Y steps accel\n\r",s.stepCount);
+        for (int i = 0; i<(s.totalSteps - 2*(s.rampUpStepCount+1)); i++){
+            Ystep_HIGH
+            Ystep_LOW
+            s.stepCount++;
+            s.stepPosition += s.dir;
+            wait_us(s.minStepInterval);
+        }
+        printf("%d Y steps constant\n\r",s.stepCount);
+        for (int i = s.rampUpStepCount;i>=0;i--){
+            Ystep_HIGH
+            Ystep_LOW
+            s.stepCount++;
+            s.stepPosition += s.dir;
+            wait_us(s.decel_di[i]);
+            if ( s.stepCount >= s.totalSteps ) {
+                printf("%d Y steps decel\n\r",s.stepCount);
+                s.movementDone = true;
+                remainingSteppersFlag &= ~(1 << 1);
+                if (!remainingSteppersFlag) {
+                    stepperEN = 1;
+                    return;
+                }
+            }
+        }
+    }
+    else{
+        remainingSteppersFlag &= ~(1 << 1);
+        return;
     }
 }
 
-void motorZThread(){
+void motorZMovement(){
     stepperInfoLock.lock();
     volatile stepperInfo& s = steppers[2];
     stepperInfoLock.unlock();
-    while(true){
-        ThisThread::flags_wait_any(4);
-        zTimer.detach();
-        if(remainingSteppersFlag & (1U << 2)){
-            stepperInfoLock.lock();
-            if ( s.stepCount < s.totalSteps ) {
-                s.stepFunc();
-                s.stepCount++;
-                s.stepPosition += s.dir;
-                if ( s.stepCount >= s.totalSteps ) {
-                    s.movementDone = true;
-                    stepperInfoLock.unlock();
-                    ThisThread::flags_clear(4);
-                    remainingSteppersFlag &= ~(1 << 2);
-                    if (!remainingSteppersFlag) {
-                        stepperEN = 1;
-                        return;
-                    }
-                }
-            }
-            if ( s.rampUpStepCount == 0 ) {
-                s.n++;
-                s.d = s.d - (2 * s.d) / (4 * s.n + 1);
-                if ( s.d <= s.minStepInterval ) {
-                s.d = s.minStepInterval;
-                s.rampUpStepCount = s.stepCount;
-                }
-                if ( s.stepCount >= s.totalSteps / 2 ) {
-                s.rampUpStepCount = s.stepCount;
-                }
-                s.rampUpStepTime += s.d;
-            }
-            else if ( s.stepCount >= s.totalSteps - s.rampUpStepCount ) {
-                s.d = (s.d * (4 * s.n + 1)) / (4 * s.n + 1 - 2);
-                s.n--;
-            }
-            s.di = s.d * s.speedScale; // integer
-            zTimer.attach(&timerCallbackZ,s.di*1us);
-            stepperInfoLock.unlock();
-            ThisThread::flags_clear(4);
+
+    if(remainingSteppersFlag & (1U << 2)){
+        //currentDelay = s.di;
+        if(!motorFlag.wait_all_for(1, 1s)){
+            printQueue.call(printf,"Error motor flag not set for motor operation! System restarting...");
+            system_reset();
         }
-        else{
-            disableStepperInterrupt(3);
-            ThisThread::flags_clear(4);
-            remainingSteppersFlag &= ~(1 << 2);
-            return;
+        for (int i = 0; i<=s.rampUpStepCount; i++){
+            Zstep_HIGH
+            Zstep_LOW
+            s.stepCount++;
+            s.stepPosition += s.dir;
+            wait_us(s.accel_di[i]);
+        }
+        printf("%d Z steps accel\n\r",s.stepCount);
+        for (int i = 0; i<(s.totalSteps - 2*(s.rampUpStepCount+1)); i++){
+            Zstep_HIGH
+            Zstep_LOW
+            s.stepCount++;
+            s.stepPosition += s.dir;
+            wait_us(s.minStepInterval);
+        }
+        printf("%d Z steps constant\n\r",s.stepCount);
+        for (int i = s.rampUpStepCount;i>=0;i--){
+            Zstep_HIGH
+            Zstep_LOW
+            s.stepCount++;
+            s.stepPosition += s.dir;
+            wait_us(s.decel_di[i]);
+            if ( s.stepCount >= s.totalSteps ) {
+                printf("%d Z steps decel\n\r",s.stepCount);
+                s.movementDone = true;
+                remainingSteppersFlag &= ~(1 << 2);
+                if (!remainingSteppersFlag) {
+                    stepperEN = 1;
+                    return;
+                }
+            }
         }
     }
-}
-
-void timerCallbackX(){
-    motorMovementX.flags_set(1);
-}
-
-void timerCallbackY(){
-    motorMovementY.flags_set(2);
-}
-
-void timerCallbackZ(){
-    motorMovementY.flags_set(4);
+    else{
+        remainingSteppersFlag &= ~(1 << 2);
+        return;
+    }
 }
