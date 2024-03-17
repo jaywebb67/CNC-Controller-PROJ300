@@ -129,7 +129,7 @@ void resetStepper(volatile stepperInfo& si) {
     float m = ((a*a - 1) / (-2 * a));
     float n = m * m;
 
-    si.estStepsToSpeed = n;
+    si.estStepsToSpeed = ceil(n);
 }
 
 
@@ -187,7 +187,7 @@ void adjustSpeedScales() {
 }
 
 void calculateAccelerationArray(){
-    for (int i =0; i<stepperNumber; i++){
+    for (int i = 0; i < stepperNumber; i++){
         volatile stepperInfo& s = steppers[i];
         if(!((1U<<i)&remainingSteppersFlag)){
             continue;
@@ -224,7 +224,7 @@ void runAndWait() {
     motorQueueX.call(motorXMovement);
     motorQueueY.call(motorYMovement);
     motorQueueZ.call(motorZMovement);
-    wait_us(10);
+    wait_us(100);
     motorFlag.set(1);
     while(remainingSteppersFlag){};
     return;
@@ -233,42 +233,41 @@ void runAndWait() {
 
 void motorXMovement(){
     stepperInfoLock.lock();
-    volatile stepperInfo& s = steppers[0];
+    volatile stepperInfo& x = steppers[0];
     stepperInfoLock.unlock();
 
     if(remainingSteppersFlag & (1U << 0)){
         //currentDelay = s.di;
-        if(!motorFlag.wait_all_for(1, 1s)){
+        if(!motorFlag.wait_all_for(1, 1s,0)){
             printQueue.call(printf,"Error motor flag not set for motor operation! System restarting...");
             system_reset();
         }
-        for (int i = 0; i<=s.rampUpStepCount; i++){
+        for (int i = 0; i<=x.rampUpStepCount; i++){
             Xstep_HIGH
             Xstep_LOW
-            s.stepCount++;
-            s.stepPosition += s.dir;
-            wait_us(s.accel_di[i]);
+            x.stepCount++;
+            x.stepPosition += x.dir;
+            wait_us(x.accel_di[i]);
         }
-        printf("%d X steps accel\n\r",s.stepCount);
-        for (int i = 0; i<(s.totalSteps - 2*(s.rampUpStepCount+1)); i++){
+        for (int i = 0; i<(x.totalSteps - 2*(x.rampUpStepCount+1)); i++){
             Xstep_HIGH
             Xstep_LOW
-            s.stepCount++;
-            s.stepPosition += s.dir;
-            wait_us(s.minStepInterval);
+            x.stepCount++;
+            x.stepPosition += x.dir;
+            wait_us(x.minStepInterval*x.speedScale);
         }
-        printf("%d X steps constant\n\r",s.stepCount);
-        for (int i = s.rampUpStepCount;i>=0;i--){
+        for (int i = x.rampUpStepCount;i>=0;i--){
             Xstep_HIGH
             Xstep_LOW
-            s.stepCount++;
-            s.stepPosition += s.dir;
-            wait_us(s.decel_di[i]);
-            if ( s.stepCount >= s.totalSteps ) {
-                printf("%d X steps decel\n\r",s.stepCount);
-                s.movementDone = true;
+            x.stepCount++;
+            x.stepPosition += x.dir;
+            wait_us(x.decel_di[i]);
+            if ( x.stepCount >= x.totalSteps ) {
+                printf("%d X steps decel\n\r",x.stepCount);
+                x.movementDone = true;
                 remainingSteppersFlag &= ~(1 << 0);
                 if (!remainingSteppersFlag) {
+                    motorFlag.clear(1);
                     stepperEN = 1;
                     return;
                 }
@@ -283,42 +282,41 @@ void motorXMovement(){
 
 void motorYMovement(){
     stepperInfoLock.lock();
-    volatile stepperInfo& s = steppers[1];
+    volatile stepperInfo& y = steppers[1];
     stepperInfoLock.unlock();
 
     if(remainingSteppersFlag & (1U << 1)){
         //currentDelay = s.di;
-        if(!motorFlag.wait_all_for(1, 1s)){
+        if(!motorFlag.wait_all_for(1, 1s,0)){
             printQueue.call(printf,"Error motor flag not set for motor operation! System restarting...");
             system_reset();
         }
-        for (int i = 0; i<=s.rampUpStepCount; i++){
+        for (int i = 0; i<=y.rampUpStepCount; i++){
             Ystep_HIGH
             Ystep_LOW
-            s.stepCount++;
-            s.stepPosition += s.dir;
-            wait_us(s.accel_di[i]);
+            y.stepCount++;
+            y.stepPosition += y.dir;
+            wait_us(y.accel_di[i]);
         }
-        printf("%d Y steps accel\n\r",s.stepCount);
-        for (int i = 0; i<(s.totalSteps - 2*(s.rampUpStepCount+1)); i++){
+        for (int i = 0; i<(y.totalSteps - 2*(y.rampUpStepCount+1)); i++){
             Ystep_HIGH
             Ystep_LOW
-            s.stepCount++;
-            s.stepPosition += s.dir;
-            wait_us(s.minStepInterval);
+            y.stepCount++;
+            y.stepPosition += y.dir;
+            wait_us(y.minStepInterval*y.speedScale);
         }
-        printf("%d Y steps constant\n\r",s.stepCount);
-        for (int i = s.rampUpStepCount;i>=0;i--){
+        for (int i = y.rampUpStepCount;i>=0;i--){
             Ystep_HIGH
             Ystep_LOW
-            s.stepCount++;
-            s.stepPosition += s.dir;
-            wait_us(s.decel_di[i]);
-            if ( s.stepCount >= s.totalSteps ) {
-                printf("%d Y steps decel\n\r",s.stepCount);
-                s.movementDone = true;
+            y.stepCount++;
+            y.stepPosition += y.dir;
+            wait_us(y.decel_di[i]);
+            if ( y.stepCount >= y.totalSteps ) {
+                printf("%d Y steps decel\n\r",y.stepCount);
+                y.movementDone = true;
                 remainingSteppersFlag &= ~(1 << 1);
                 if (!remainingSteppersFlag) {
+                    motorFlag.clear(1);
                     stepperEN = 1;
                     return;
                 }
@@ -333,42 +331,41 @@ void motorYMovement(){
 
 void motorZMovement(){
     stepperInfoLock.lock();
-    volatile stepperInfo& s = steppers[2];
+    volatile stepperInfo& z = steppers[2];
     stepperInfoLock.unlock();
 
     if(remainingSteppersFlag & (1U << 2)){
         //currentDelay = s.di;
-        if(!motorFlag.wait_all_for(1, 1s)){
+        if(!motorFlag.wait_all_for(1, 1s,0)){
             printQueue.call(printf,"Error motor flag not set for motor operation! System restarting...");
             system_reset();
         }
-        for (int i = 0; i<=s.rampUpStepCount; i++){
+        for (int i = 0; i<=z.rampUpStepCount; i++){
             Zstep_HIGH
             Zstep_LOW
-            s.stepCount++;
-            s.stepPosition += s.dir;
-            wait_us(s.accel_di[i]);
+            z.stepCount++;
+            z.stepPosition += z.dir;
+            wait_us(z.accel_di[i]);
         }
-        printf("%d Z steps accel\n\r",s.stepCount);
-        for (int i = 0; i<(s.totalSteps - 2*(s.rampUpStepCount+1)); i++){
+        for (int i = 0; i<(z.totalSteps - 2*(z.rampUpStepCount+1)); i++){
             Zstep_HIGH
             Zstep_LOW
-            s.stepCount++;
-            s.stepPosition += s.dir;
-            wait_us(s.minStepInterval);
+            z.stepCount++;
+            z.stepPosition += z.dir;
+            wait_us(z.minStepInterval*z.speedScale);
         }
-        printf("%d Z steps constant\n\r",s.stepCount);
-        for (int i = s.rampUpStepCount;i>=0;i--){
+        for (int i = z.rampUpStepCount;i>=0;i--){
             Zstep_HIGH
             Zstep_LOW
-            s.stepCount++;
-            s.stepPosition += s.dir;
-            wait_us(s.decel_di[i]);
-            if ( s.stepCount >= s.totalSteps ) {
-                printf("%d Z steps decel\n\r",s.stepCount);
-                s.movementDone = true;
+            z.stepCount++;
+            z.stepPosition += z.dir;
+            wait_us(z.decel_di[i]);
+            if ( z.stepCount >= z.totalSteps ) {
+                printf("%d Z steps decel\n\r",z.stepCount);
+                z.movementDone = true;
                 remainingSteppersFlag &= ~(1 << 2);
                 if (!remainingSteppersFlag) {
+                    motorFlag.clear(1);
                     stepperEN = 1;
                     return;
                 }
