@@ -43,7 +43,7 @@ void init_stepper(unsigned int F_pwm){
 	GPIOB->AFR[0]|=(AF_tim3<<GPIO_AFRL_AFSEL0_Pos);
 
 	RCC->APB1ENR|=RCC_APB1ENR_TIM3EN;
-	unsigned short psc3=1;
+	unsigned short psc3=6;
 	unsigned short arr3=(unsigned short)(((APB1_TIM_FREQ/(psc3*F_pwm)))-1);
 	TIM12->CCMR1=(6u<<TIM_CCMR1_OC2M_Pos);
 	TIM12->CCER|=TIM_CCER_CC2E;
@@ -106,9 +106,9 @@ void stepper_init(uint32_t frequency, uint8_t d){
 	TIM12->CCMR1 &= ~TIM_CCMR1_CC2S;
 
 	//set prescalers to 0
-	TIM3->PSC = 1-1;
-	TIM4->PSC = 1-1;
-	TIM12->PSC = 1-1;
+	TIM3->PSC = 6-1;
+	TIM4->PSC = 6-1;
+	TIM12->PSC = 6-1;
 
 	// APB1 Timer clock/3600 = 25kHz
 	TIM3->ARR = (APB1_TIM_FREQ / frequency) - 1;
@@ -343,8 +343,9 @@ void TIM4_IRQHandler(){
 
 void TIM8_BRK_TIM12_IRQHandler(){
 	if(TIM12->SR  & TIM_SR_UIF){
-		timerCallback(1);
 		TIM12->SR &= ~(TIM_SR_UIF); // Clear update interrupt flag
+		timerCallback(1);
+
 	}
 }
 

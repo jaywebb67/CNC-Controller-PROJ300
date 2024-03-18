@@ -53,7 +53,7 @@ void xDir(int dir){
         GPIOB->BSRR = (1U << 4);
     }
     else{
-        GPIOB->BSRR = (1U << (4+15));
+        GPIOB->BSRR = (1U << (4+16));
     }
 }
 
@@ -67,7 +67,7 @@ void yDir(int dir){
         GPIOB->BSRR = (1U << 3);
     }
     else{
-        GPIOB->BSRR = (1U << (3+15));
+        GPIOB->BSRR = (1U << (3+16));
     }
 }
 
@@ -78,10 +78,10 @@ void zStep() {
 
 void zDir(int dir){
     if(dir){
-        GPIOB->BSRR = (1U << 5);
+        GPIOB->BSRR = (1U << 6);
     }
     else{
-        GPIOB->BSRR = (1U << (5+15));
+        GPIOB->BSRR = (1U << (6+16));
     }
 }
 
@@ -244,31 +244,33 @@ void motorXMovement(){
         }
         for (int i = 0; i<=x.rampUpStepCount; i++){
             Xstep_HIGH
+            wait_us(x.accel_di[i]);
             Xstep_LOW
             x.stepCount++;
             x.stepPosition += x.dir;
-            wait_us(x.accel_di[i]);
+            //wait_us(x.accel_di[i]);
         }
         for (int i = 0; i<(x.totalSteps - 2*(x.rampUpStepCount+1)); i++){
             Xstep_HIGH
+            wait_us(x.minStepInterval*x.speedScale);
             Xstep_LOW
             x.stepCount++;
             x.stepPosition += x.dir;
-            wait_us(x.minStepInterval*x.speedScale);
+            
         }
         for (int i = x.rampUpStepCount;i>=0;i--){
             Xstep_HIGH
+            wait_us(x.decel_di[i]);
             Xstep_LOW
             x.stepCount++;
             x.stepPosition += x.dir;
-            wait_us(x.decel_di[i]);
             if ( x.stepCount >= x.totalSteps ) {
-                printf("%d X steps decel\n\r",x.stepCount);
+                //printf("%d X steps decel\n\r",x.stepCount);
                 x.movementDone = true;
                 remainingSteppersFlag &= ~(1 << 0);
                 if (!remainingSteppersFlag) {
-                    motorFlag.clear(1);
                     stepperEN = 1;
+                    motorFlag.clear(1);
                     return;
                 }
             }
@@ -293,31 +295,32 @@ void motorYMovement(){
         }
         for (int i = 0; i<=y.rampUpStepCount; i++){
             Ystep_HIGH
+            wait_us(y.accel_di[i]);
             Ystep_LOW
             y.stepCount++;
             y.stepPosition += y.dir;
-            wait_us(y.accel_di[i]);
         }
         for (int i = 0; i<(y.totalSteps - 2*(y.rampUpStepCount+1)); i++){
             Ystep_HIGH
+            wait_us(y.minStepInterval*y.speedScale);
             Ystep_LOW
             y.stepCount++;
             y.stepPosition += y.dir;
-            wait_us(y.minStepInterval*y.speedScale);
         }
         for (int i = y.rampUpStepCount;i>=0;i--){
             Ystep_HIGH
+            wait_us(y.decel_di[i]);
             Ystep_LOW
             y.stepCount++;
             y.stepPosition += y.dir;
-            wait_us(y.decel_di[i]);
             if ( y.stepCount >= y.totalSteps ) {
-                printf("%d Y steps decel\n\r",y.stepCount);
+                //printf("%d Y steps decel\n\r",y.stepCount);
                 y.movementDone = true;
                 remainingSteppersFlag &= ~(1 << 1);
                 if (!remainingSteppersFlag) {
-                    motorFlag.clear(1);
                     stepperEN = 1;
+                    motorFlag.clear(1);
+
                     return;
                 }
             }
@@ -342,31 +345,32 @@ void motorZMovement(){
         }
         for (int i = 0; i<=z.rampUpStepCount; i++){
             Zstep_HIGH
+            wait_us(z.accel_di[i]);
             Zstep_LOW
             z.stepCount++;
             z.stepPosition += z.dir;
-            wait_us(z.accel_di[i]);
         }
         for (int i = 0; i<(z.totalSteps - 2*(z.rampUpStepCount+1)); i++){
             Zstep_HIGH
+            wait_us(z.minStepInterval*z.speedScale);
             Zstep_LOW
             z.stepCount++;
             z.stepPosition += z.dir;
-            wait_us(z.minStepInterval*z.speedScale);
         }
         for (int i = z.rampUpStepCount;i>=0;i--){
             Zstep_HIGH
+            wait_us(z.decel_di[i]);
             Zstep_LOW
             z.stepCount++;
             z.stepPosition += z.dir;
-            wait_us(z.decel_di[i]);
             if ( z.stepCount >= z.totalSteps ) {
-                printf("%d Z steps decel\n\r",z.stepCount);
+                //printf("%d Z steps decel\n\r",z.stepCount);
                 z.movementDone = true;
                 remainingSteppersFlag &= ~(1 << 2);
                 if (!remainingSteppersFlag) {
-                    motorFlag.clear(1);
                     stepperEN = 1;
+                    motorFlag.clear(1);
+
                     return;
                 }
             }
