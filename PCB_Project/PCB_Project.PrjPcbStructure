@@ -1,1 +1,3 @@
-Record=TopLevelDocument|FileName=Schemtaic.SchDoc|SheetNumber=1
+Record=TopLevelDocument|FileName=Schemtaic Sheet 2.SchDoc|SheetNumber=1
+Record=NoMainPathDocument|SourceDocument=Schemtaic Sheet 2.SchDoc|FileName=Schemtaic Sheet 3.SchDoc|SheetNumber=3
+Record=NoMainPathDocument|SourceDocument=Schemtaic Sheet 2.SchDoc|FileName=Schemtaic Sheet 4.SchDoc|SheetNumber=2

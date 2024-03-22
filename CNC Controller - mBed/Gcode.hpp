@@ -10,7 +10,8 @@
 #define GCODE_HPP_
 
 #include "mbed.h"
-
+#include "steppers.hpp"
+#include <cctype>
 #define MAX_CHARACTER_PER_LINE 256
 
 typedef enum {
@@ -147,12 +148,24 @@ typedef struct{
 	spindleTurning_t spindleTurn;
 	coolant_t coolant;
 	SwitchOverride_t switchOverride;
-} line_t;
+} lineModals_t;
 
+typedef struct {
 
+    lineModals_t line_modals;
+    float radius;
+    float dwell;
+    float feed;
+    float spindle;
+    int toolNo;
+    float x_target;
+    float y_target;
+    float z_target;
 
-void parse_gcode(char *line, line_t line_modals);
-void executeLine(line_t line_modals, int x_target, int y_target, int Z_target);
+} lineStruct_t;
+
+void parse_gcode(char *line, lineModals_t line_modals);
+void executeLine(lineStruct_t line_structure);
 
 #endif  //GCODE_HPP_
 

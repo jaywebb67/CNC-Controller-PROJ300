@@ -24,6 +24,8 @@
 
 #define max_velocity 10000
 #define max_acceleration 1000
+#define mm_per_revoltuion 4
+#define steps_per_revoltuion 1600
 
 struct stepperInfo {
   // externally defined parameters
@@ -53,6 +55,8 @@ struct stepperInfo {
   volatile unsigned long decel_di[2000];               // above variable truncated
   volatile unsigned int stepCount;         // number of steps completed in current movement
 };
+
+extern volatile stepperInfo steppers[stepperNumber];
 
 typedef enum {
 
