@@ -32,7 +32,7 @@ Thread printThread;
 EventQueue printQueue;
 
 EventFlags motorFlag;
-volatile stepperInfo steppers[stepperNumber];
+volatile stepperInfo steppers[N_AXIS];
 volatile uint8_t remainingSteppersFlag = 0;
 
 
@@ -170,7 +170,7 @@ void prepareMovement(int whichMotor, long steps) {
 void adjustSpeedScales() {
   float maxTime = 0;
   
-  for (int i = 0; i < stepperNumber; i++) {
+  for (int i = 0; i < N_AXIS; i++) {
     if ( ! ((1 << i) & remainingSteppersFlag) )
       continue;
     if ( steppers[i].estTimeForMove > maxTime )
@@ -178,7 +178,7 @@ void adjustSpeedScales() {
   }
 
   if ( maxTime != 0 ) {
-    for (int i = 0; i < stepperNumber; i++) {
+    for (int i = 0; i < N_AXIS; i++) {
       if ( ! ( (1 << i) & remainingSteppersFlag) )
         continue;
       steppers[i].speedScale = maxTime / steppers[i].estTimeForMove;
@@ -187,7 +187,7 @@ void adjustSpeedScales() {
 }
 
 void calculateAccelerationArray(){
-    for (int i = 0; i < stepperNumber; i++){
+    for (int i = 0; i < N_AXIS; i++){
         volatile stepperInfo& s = steppers[i];
         if(!((1U<<i)&remainingSteppersFlag)){
             continue;

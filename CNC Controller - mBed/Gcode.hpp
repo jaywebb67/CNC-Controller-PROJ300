@@ -12,6 +12,8 @@
 #include "mbed.h"
 #include "steppers.hpp"
 #include <cctype>
+#include <cstdint>
+#include "spindle.hpp"
 #define MAX_CHARACTER_PER_LINE 256
 
 typedef enum {
@@ -19,17 +21,17 @@ typedef enum {
 	G1,
 	G2,
 	G3,
-	G38_2,
-	G80,
-	G81,
-	G82,
-	G83,
-	G84,
-	G85,
-	G86,
-	G87,
-	G88,
-	G89
+	G38_2
+	// G80,
+	// G81,
+	// G82,
+	// G83,
+	// G84,
+	// G85,
+	// G86,
+	// G87,
+	// G88,
+	// G89
 } motion_t;
 
 typedef enum {
@@ -89,18 +91,21 @@ typedef enum {
 } pathControlMode_t;
 
 typedef enum{
+    
 	G4,
 	G10,
 	G28,
+    G28_1,
 	G30,
+    G30_1,
 	G53,
 	G92,
-	G92_1,
-	G92_2,
-	G92_3
+	G92_1
+    
 } nonModal_t;
 
 typedef enum {
+    resume,
 	M0,
 	M1,
 	M2,
@@ -142,7 +147,6 @@ typedef struct{
 	returnModeCannedCycle_t returnCanned;
 	coordinateSystemSelection_t coordSystem;
 	pathControlMode_t pathControl;
-	nonModal_t nonModal[9];
 	stopping_t stopping;
 	toolChange_t toolChange;
 	spindleTurning_t spindleTurn;
@@ -151,21 +155,48 @@ typedef struct{
 } lineModals_t;
 
 typedef struct {
+  float feed;      // Feed
+  float ijk[3];    // I,J,K Axis arc offsets
+  uint8_t l;       // G10 or canned cycles parameters
+  int32_t n;       // Line number
+  float dwell;     // G10 or dwell parameters
+  // float q;      // G82 peck drilling
+  float radius;    // Arc radius
+  float spindle;   // Spindle speed
+  uint8_t toolNo;  // Tool selection
+  float xyz[3];    // X,Y,Z Translational axes
+} line_values_t;
 
-    lineModals_t line_modals;
-    float radius;
-    float dwell;
-    float feed;
-    float spindle;
-    int toolNo;
-    float x_target;
-    float y_target;
-    float z_target;
+typedef struct {
 
-} lineStruct_t;
+    uint16_t nonModalFlag;
+    lineModals_t modals;
+    line_values_t values;
+
+} lineStruct_block_t;
+
+extern lineStruct_block_t line_block;
+
+typedef struct {
+  lineModals_t modal;
+  
+  float spindle_speed;          // RPM
+  float feed_rate;              // Millimeters/min
+  uint8_t tool;                 // Tracks tool number. NOT USED.
+  int32_t line_number;          // Last line number sent
+
+  float position[N_AXIS];       // Where the interpreter considers the tool to be at this point in the code
+
+  float coord_system[N_AXIS];   // Current work coordinate system (G54+). Stores offset from absolute machine
+                                // position in mm. Loaded from EEPROM when called.  
+  float coord_offset[N_AXIS];   // Retains the G92 coordinate offset (work coordinates) relative to
+                                // machine zero in mm. Non-persistent. Cleared upon reset and boot.    
+  float tool_length_offset;     // Tracks tool length offset value when enabled.
+} lineStruct_state_t;
+extern lineStruct_state_t line_state;
 
 void parse_gcode(char *line, lineModals_t line_modals);
-void executeLine(lineStruct_t line_structure);
+void executeLine(lineStruct_block_t line_structure);
 
 #endif  //GCODE_HPP_
 

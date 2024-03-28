@@ -11,7 +11,7 @@
 #define zdir_pin PB_6
 #define zstep_pin PB_5
 
-#define stepperNumber 3
+#define N_AXIS 3
 
 #define Xstep_HIGH   GPIOB->BSRR = (1U << 15);
 #define Xstep_LOW  GPIOB->BSRR = (1U << (15+16));
@@ -22,10 +22,16 @@
 #define Zstep_HIGH   GPIOB->BSRR = (1U << 5);
 #define Zstep_LOW  GPIOB->BSRR = (1U << (5+16));
 
-#define max_velocity 10000
+#define X_AXIS 0
+#define Y_AXIS 1
+#define Z_AXIS 2
+
+#define min_delay_us 34 
 #define max_acceleration 1000
 #define mm_per_revoltuion 4
 #define steps_per_revoltuion 1600
+
+#define MM_PER_INCH 25.40
 
 struct stepperInfo {
   // externally defined parameters
@@ -56,7 +62,7 @@ struct stepperInfo {
   volatile unsigned int stepCount;         // number of steps completed in current movement
 };
 
-extern volatile stepperInfo steppers[stepperNumber];
+extern volatile stepperInfo steppers[N_AXIS];
 
 typedef enum {
 
@@ -80,6 +86,9 @@ void stepperInit(int accel, int max_speed);
 void disableStepperInterrupt(int axis);
 void runAndWait();
 void prepareMovement(int whichMotor, long steps);
+void motionArc(float *position, float *target, float *offset, float radius, float feed_rate,
+            uint8_t invert_feed_rate, uint8_t axis_0, uint8_t axis_1, uint8_t axis_linear, uint8_t is_clockwise_arc);
+void probeCycle(float *target, float feed_rate, uint8_t invert_feed_rate);
 
 // void move_axis_stepper_motor(int axis, uint32_t steps,int dir);
 // void oneRevolution(uint16_t microstepping,int axis,int dir);
