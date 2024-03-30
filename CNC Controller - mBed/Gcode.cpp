@@ -6,41 +6,135 @@
 */
 
 #include "Gcode.hpp"
+#include <cctype>
 #include <cstdint>
 #include <cstdio>
-
+#include <cstdlib>
+#include <string> 
+using namespace std;
 
 
 lineStruct_block_t line_block;
 lineStruct_state_t line_state;
 
+volatile uint8_t axis_word = 0; //XYZ Tracking
+volatile uint8_t ijk_words = 0; // IJK tracking 
+float h_x2_div_d,x,y = 0;
+
+
+float parseValue(const char* valueString) {
+    // Convert string to floating-point number
+    char* endPtr;
+    float value = strtof(valueString, &endPtr);
+
+    // Check if conversion was successful
+    if (*endPtr != '\0') {
+        // Conversion failed, handle error
+        printf("Error: Invalid numerical value '%s'\n", valueString);
+        // You might want to return a special value indicating an error,
+        // or throw an exception depending on your error handling strategy.
+    }
+
+    return value;
+}
+
+void updateBlockValue(char command, const float value){
+    switch (command) {
+        case 'R': case 'r':
+            line_block.values.radius = value;
+            break;
+        case 'P': case 'p':
+            line_block.values.dwell = value;
+            break;
+        case 'F': case 'f':
+            line_block.values.feed = value;
+            break;
+        case 'S': case 's':
+            line_block.values.spindle = value;
+            break;
+        case 'T': case 't':
+            // Assuming it's an integer value
+            line_block.values.toolNo = static_cast<int>(value);
+            break;
+        case 'X': case 'x':
+            line_block.values.xyz[X_AXIS] = value;
+            axis_word |= (1 << X_AXIS);
+            break;
+        case 'Y': case 'y':
+            line_block.values.xyz[Y_AXIS] = value;
+            axis_word |= (1 << Y_AXIS);
+            break;
+        case 'Z': case 'z':
+            line_block.values.xyz[Z_AXIS] = value;
+            axis_word |= (1 << Z_AXIS);
+            break;
+        case 'I': case 'i':
+            line_block.values.ijk[X_AXIS] = value;
+            ijk_words |= (1 << X_AXIS);
+            break;
+        case 'J': case 'j':
+            line_block.values.ijk[Y_AXIS] = value;
+            ijk_words |= (1 << Y_AXIS);
+            break;
+        case 'K': case 'k':
+            line_block.values.ijk[Z_AXIS] = value;
+            ijk_words |= (1 << Z_AXIS);
+            break;
+        default:
+            break;
+    }
+}
+
+char valueString[20]; // Assuming maximum length of value string
+volatile int valueIndex = 0;
+volatile float value = 0.0f;
+volatile uint8_t axis_0 = 0, axis_1 = 0, axis_linear = 0;
+volatile int char_counter = 0;
+volatile uint8_t coord_select = 0; // Tracks G10 P coordinate selection for execution
+float coordinate_data[N_AXIS] = {0};
+float parameter_data[N_AXIS] = {0};
 void parse_gcode(char *line) {
 
-    memset(&line_block, 0, sizeof(lineStruct_block_t)); // Initialize the parser block struct.
+    memset(&line_block.nonModalFlag, 0, sizeof(uint16_t)); // Initialize the parser block struct.
+    memset(&line_block.modals, 0, sizeof(lineModals_t)); // Initialize the parser block struct.
+
+    line_block.values.xyz[X_AXIS] = 0; line_block.values.xyz[Y_AXIS] = 0; line_block.values.xyz[Z_AXIS] = 0;
+    line_block.values.ijk[X_AXIS] = 0; line_block.values.ijk[Y_AXIS] = 0; line_block.values.ijk[Z_AXIS] = 0;
+
+    line_block.values.l = 0; line_block.values.dwell = 0; line_block.values.radius = 0;
+
     memcpy(&line_block.modals,&line_state.modal,sizeof(lineModals_t)); // Copy current modes
-    
-    uint8_t coord_select = 0; // Tracks G10 P coordinate selection for execution
-    float coordinate_data[N_AXIS];
-    float parameter_data[N_AXIS];
+    line_block.values.toolNo = line_state.tool;
+    line_block.values.feed = line_state.feed_rate;
+    line_block.values.spindle = line_state.spindle_speed;
+    line_block.modals.motion = NONE;
 
-    uint8_t axis_word = 0; //XYZ Tracking
-    uint8_t ijk_words = 0; // IJK tracking 
+    char_counter = 0;
+    coord_select = 0;
 
-    uint8_t axis_0, axis_1, axis_linear;
-	int char_counter = 0;
+
+    axis_word = 0; //XYZ Tracking
+    ijk_words = 0; // IJK tracking 
+
+
     line_block.nonModalFlag = 0;
-    while (char_counter <= MAX_CHARACTER_PER_LINE) {
+
+
+    while (line[char_counter] != '\0') {
     	switch(line[char_counter]){
-			case 'G':
+            // if(isalpha(line[char_counter])){
+            //     line[char_counter] = (char)toupper(line[char_counter]);
+            // }
+			case 'G': case 'g':
                 char_counter++;
                 if(line[char_counter] == ' '){
-                    break;
+                    char_counter++;
                 }
                 switch(line[char_counter]){
-                    case 0:
+                    case '0':
                         line_block.modals.motion = G0;
                         break;
-                    case 1:
+                    case '1':
                         char_counter++;
                         if(line[char_counter] == ' '){
                             line_block.modals.motion = G1;
@@ -48,24 +142,24 @@ void parse_gcode(char *line) {
                         }
                         else{
                             switch(line[char_counter]){
-                                case 0:
+                                case '0':
                                     line_block.nonModalFlag |= (1U << G10);
                                     break;
-                                case 7:
+                                case '7':
                                     line_block.modals.plane = G17;
                                     break;
-                                case 8:
+                                case '8':
                                     line_block.modals.plane = G18;
                                     break;
-                                case 9:
+                                case '9':
                                     line_block.modals.plane = G19;
                                     break;
                                 default:
                                     break;
                             }
                         }
-
-                    case 2:
+                        break;
+                    case '2':
                         char_counter++;
                         if(line[char_counter] == ' '){
                             line_block.modals.motion = G2;
@@ -73,30 +167,31 @@ void parse_gcode(char *line) {
                         }
                         else{
                             switch(line[char_counter]){
-                                case 0:
+                                case '0':
                                     line_block.modals.units = G20;
                                     break;
-                                case 1:
+                                case '1':
                                     line_block.modals.units = G21;
                                     break;
-                                case 8:
+                                case '8':
                                     line_block.nonModalFlag |= ( 1U << G28);
                                     break;
                                 default:
                                     break;
                             }
                         }
-                    case 3:
+                        break;
+                    case '3':
                         char_counter++;
                         if(line[char_counter] == ' '){
                             line_block.modals.motion = G3;
                         }
                         else{
                             switch(line[char_counter]){
-                                case 0:
+                                case '0':
                                     line_block.nonModalFlag |= ( 1U << G30);
                                     break;
-                                case 8:
+                                case '8':
                                     line_block.modals.motion = G38_2;
                                     break;
                                 default:
@@ -104,7 +199,7 @@ void parse_gcode(char *line) {
                             }
                         }
                         break;
-                    case 4:
+                    case '4':
                         char_counter++;
                         if(line[char_counter] == ' '){
                             line_block.nonModalFlag |= ( 1U << G4);
@@ -112,19 +207,19 @@ void parse_gcode(char *line) {
                         }
                         else{
                             switch(line[char_counter]){
-                                case 0:
+                                case '0':
                                     line_block.modals.cutterRadius = G40;
                                     break;
-                                case 1:
+                                case '1':
                                     line_block.modals.cutterRadius = G41;
                                     break;
-                                case 2:
+                                case '2':
                                     line_block.modals.cutterRadius = G42;
                                     break;
-                                case 3:
+                                case '3':
                                     line_block.modals.toolLength = G43;
                                     break;
-                                case 9:
+                                case '9':
                                     line_block.modals.toolLength = G49;
                                     break;
                                 default:
@@ -132,28 +227,28 @@ void parse_gcode(char *line) {
                             }
                         }  
                         break;                          
-                    case 5:
+                    case '5':
                         char_counter++;
                         switch(line[char_counter]){
-                            case 3:
+                            case '3':
                                 line_block.nonModalFlag |= (1U << G53);
                                 break;
-                            case 4:
+                            case '4':
                                 line_block.modals.coordSystem = G54;
                                 break;
-                            case 5:
+                            case '5':
                                 line_block.modals.coordSystem = G55;
                                 break;
-                            case 6:
+                            case '6':
                                 line_block.modals.coordSystem = G56;
                                 break;
-                            case 7:
+                            case '7':
                                 line_block.modals.coordSystem = G57;
                                 break;
-                            case 8:
+                            case '8':
                                 line_block.modals.coordSystem = G58;
                                 break;
-                            case 9:
+                            case '9':
                                 char_counter++;
                                 if(line[char_counter] == ' '){
                                     line_block.modals.coordSystem = G59;
@@ -161,7 +256,7 @@ void parse_gcode(char *line) {
                                 else{
                                     char_counter++;
                                     switch (line[char_counter]) {
-                                        case 1:
+                                        case '1':
                                             line_block.modals.coordSystem = G59_1;
                                             break;
                                         // case 2:
@@ -181,7 +276,7 @@ void parse_gcode(char *line) {
                                 break;
                         }
                         break;
-                    case 6:
+                    case '6':
                         char_counter++;
                         if (line[char_counter] == 1){
                             char_counter++;
@@ -197,7 +292,7 @@ void parse_gcode(char *line) {
                             line_block.modals.pathControl = G64;
                         }
                         break;
-                    case 8:
+                    case '8':
                         char_counter++;
                         // switch (line[char_counter]) {
                         //     case 0:
@@ -233,29 +328,29 @@ void parse_gcode(char *line) {
                         //     default:
                         //         break;
                         // }
-                        // break;
-                    case 9:
+                        break;
+                    case '9':
                         char_counter++;
                         switch(line[char_counter]){
-                            case 0:
+                            case '0':
                                 line_block.modals.distance = G90;
                                 break;
-                            case 1:
+                            case '1':
                                 line_block.modals.distance = G91;
                                 break;
-                            case 3:
+                            case '3':
                                 line_block.modals.feed = G93;
                                 break;
-                            case 4:
+                            case '4':
                                 line_block.modals.feed = G94;
                                 break;
-                            case 8:
+                            case '8':
                                 line_block.modals.returnCanned = G98;
                                 break;
-                            case 9:
+                            case '9':
                                 line_block.modals.returnCanned = G99;
                                 break;
-                            case 2:
+                            case '2':
                                 char_counter++;
                                 if (line[char_counter] == ' '){
                                     line_block.nonModalFlag |= ( 1U << G92);
@@ -264,7 +359,7 @@ void parse_gcode(char *line) {
                                 else{
                                     char_counter++;
                                     switch(line[char_counter]){
-                                        case 1:
+                                        case '1':
                                             line_block.nonModalFlag |= ( 1U << G92_1);
                                             break;
                                         // case 2:
@@ -277,6 +372,7 @@ void parse_gcode(char *line) {
                                             break;
                                     }
                                 }
+                                break;
                             default:
                                 break;
                         }
@@ -285,23 +381,23 @@ void parse_gcode(char *line) {
                         break;
                 }
                 break;
-			case 'M':
+			case 'M':case 'm':
                 char_counter++;
                 if(line[char_counter] == ' '){
                     break;
                 }
                 else{
                     switch (line[char_counter]) {
-                        case 0:
+                        case '0':
                             line_block.modals.stopping = M0;
                             break;
-                        case 1:
+                        case '1':
                             line_block.modals.stopping = M1;
                             break;
-                        case 2:
+                        case '2':
                             line_block.modals.stopping = M2;
                             break;
-                        case 3:
+                        case '3':
                             char_counter++;
                             if (line[char_counter] == ' '){
                                 line_block.modals.spindleTurn = M3;
@@ -311,7 +407,7 @@ void parse_gcode(char *line) {
                                     line_block.modals.stopping = M30;
                                 }                            
                             break;
-                        case 4:
+                        case '4':
                             char_counter++;
                             if (line[char_counter] == ' '){
                                 line_block.modals.spindleTurn = M4;
@@ -323,19 +419,19 @@ void parse_gcode(char *line) {
                                 line_block.modals.switchOverride = M49;
                             }
                             break;
-                        case 5:
+                        case '5':
                             line_block.modals.spindleTurn = M5;
                             break;
-                        case 6:
+                        case '6':
                             line_block.modals.toolChange = M6;
                             break;
-                        case 7:                        
+                        case '7':                        
                             line_block.modals.coolant = M7;
                             break;
-                        case 8:
+                        case '8':
                             line_block.modals.coolant = M8;
                             break;
-                        case 9:
+                        case '9':
                             line_block.modals.coolant = M9;
                             break;
                         default:
@@ -343,198 +439,73 @@ void parse_gcode(char *line) {
                     }
                 }
 				break;
-			case 'R':
-                char_counter++;
-                while(line[char_counter] != ' '){
-                    if (isdigit(line[char_counter])) {
-                        // Convert character to integer and add to the number
-                        if(line[char_counter-1] == '.'){
-                            line_block.values.radius = line_block.values.radius + ((line[char_counter] - '0') * 0.1);
-                        }
-                        else{
-                            line_block.values.radius = line_block.values.radius * 10 + (line[char_counter] - '0');
-                        }
-                    }
+			case 'R': case 'r':
+            case 'P': case 'p':
+            case 'F': case 'f':
+            case 'S': case 's':
+            case 'T': case 't':
+            case 'X': case 'x':
+            case 'Y': case 'y':
+            case 'Z': case 'z':
+            case 'I': case 'i':
+            case 'J': case 'j':
+            case 'K': case 'k':
+
+                valueIndex = 0;
+                value = 0;
+                
+                // Clear the value string buffer
+                memset(valueString, 0, sizeof(valueString));
+
+                do{
                     char_counter++;
+                } while(line[char_counter] == ' ');
+                
+
+                // Store characters in valueString until whitespace or non-number character or end of line
+                while (line[char_counter] != ' ' && line[char_counter] != '\0' && !isalpha(line[char_counter])) {
+                    valueString[valueIndex++] = line[char_counter++];
                 }
-				break;
-			case 'P':
-                char_counter++;
-                while(line[char_counter] != ' '){
-                    if (isdigit(line[char_counter])) {
-                        // Convert character to integer and add to the number
-                        if(line[char_counter-1] == '.'){
-                            line_block.values.dwell = line_block.values.dwell + ((line[char_counter] - '0') * 0.1);
-                        }
-                        else{
-                            line_block.values.dwell = line_block.values.dwell * 10 + (line[char_counter] - '0');
-                        }
-                    }
-                    char_counter++;
+
+                valueString[valueIndex] = '\0'; // Null-terminate the string
+
+                // Parse the value string to a float
+                value = atof(valueString);
+
+                // Update line_block based on the command
+                if (isalpha(line[char_counter-valueIndex-1])){
+                    updateBlockValue(line[char_counter-valueIndex-1],value);
                 }
-				break;
-			case 'F':
-                char_counter++;
-                while(line[char_counter] != ' '){
-                    if (isdigit(line[char_counter])) {
-                        // Convert character to integer and add to the number
-                        if(line[char_counter-1] == '.'){
-                            line_block.values.feed = line_block.values.feed + ((line[char_counter] - '0') * 0.1);
-                        }
-                        else{
-                            line_block.values.feed = line_block.values.feed * 10 + (line[char_counter] - '0');
-                        }
-                    }
-                    char_counter++;
+                else {
+                    updateBlockValue(line[char_counter-valueIndex-2],value);
                 }
-				break;
-			case 'S':
-                char_counter++;
-                while(line[char_counter] != ' '){
-                    if (isdigit(line[char_counter])) {
-                        // Convert character to integer and add to the number
-                        if(line[char_counter-1] == '.'){
-                            line_block.values.spindle = line_block.values.spindle + ((line[char_counter] - '0') * 0.1);
-                        }
-                        else{
-                            line_block.values.spindle = line_block.values.spindle * 10 + (line[char_counter] - '0');
-                        }
-                    }
-                    char_counter++;
-                }
-				break;
-			case 'T':
-                char_counter++;
-                while(line[char_counter] != ' '){
-                    if (isdigit(line[char_counter])) {
-                        // Convert character to integer and add to the number
-                        line_block.values.toolNo = line_block.values.toolNo * 10 + (line[char_counter] - '0');
-                    }
-                    char_counter++;
-                }
-				break;
-			case 'X':
-                char_counter++;
-                while(line[char_counter] != ' '){
-                    if (isdigit(line[char_counter])) {
-                        // Convert character to integer and add to the number
-                        if(line[char_counter-1] == '.'){
-                            line_block.values.xyz[X_AXIS] = line_block.values.xyz[X_AXIS] + ((line[char_counter] - '0') * 0.1);
-                        }
-                        else{
-                            line_block.values.xyz[X_AXIS] = line_block.values.xyz[X_AXIS] * 10 + (line[char_counter] - '0');
-                        }
-                    }
-                    char_counter++;
-                }
-                axis_word |= (1U << X_AXIS);
-				break;
-			case 'Y':
-                char_counter++;
-                while(line[char_counter] != ' '){
-                    if (isdigit(line[char_counter])) {
-                        // Convert character to integer and add to the number
-                        if(line[char_counter-1] == '.'){
-                            line_block.values.xyz[Y_AXIS] = line_block.values.xyz[Y_AXIS] + ((line[char_counter] - '0') * 0.1);
-                        }
-                        else{
-                            line_block.values.xyz[Y_AXIS] = line_block.values.xyz[Y_AXIS] * 10 + (line[char_counter] - '0');
-                        }
-                    }
-                    char_counter++;
-                }
-                axis_word |= (1U << Y_AXIS);
-				break;
-			case 'Z':
-                char_counter++;
-                while(line[char_counter] != ' '){
-                    if (isdigit(line[char_counter])) {
-                        // Convert character to integer and add to the number
-                        if(line[char_counter-1] == '.'){
-                            line_block.values.xyz[Z_AXIS] = line_block.values.xyz[Z_AXIS] + ((line[char_counter] - '0') * 0.1);
-                        }
-                        else{
-                            line_block.values.xyz[Z_AXIS] = line_block.values.xyz[Z_AXIS] * 10 + (line[char_counter] - '0');
-                        }
-                    }
-                    char_counter++;
-                }
-                axis_word |= (1U << Z_AXIS);
-				break;
-            case 'I':
-                char_counter++;
-                while(line[char_counter] != ' '){
-                    if (isdigit(line[char_counter])) {
-                        // Convert character to integer and add to the number
-                        if(line[char_counter-1] == '.'){
-                            line_block.values.ijk[0] = line_block.values.ijk[0] + ((line[char_counter] - '0') * 0.1);
-                        }
-                        else{
-                            line_block.values.ijk[0] = line_block.values.ijk[0]* 10 + (line[char_counter] - '0');
-                        }
-                    }
-                    char_counter++;
-                }
-                ijk_words |= (1<<X_AXIS);
-				break;
-            case 'J':
-                char_counter++;
-                while(line[char_counter] != ' '){
-                    if (isdigit(line[char_counter])) {
-                        // Convert character to integer and add to the number
-                        if(line[char_counter-1] == '.'){
-                            line_block.values.ijk[1] = line_block.values.ijk[1] + ((line[char_counter] - '0') * 0.1);
-                        }
-                        else{
-                            line_block.values.ijk[1] = line_block.values.ijk[1]* 10 + (line[char_counter] - '0');
-                        }
-                    }
-                    char_counter++;
-                }
-                ijk_words |= (1<<Y_AXIS);
-				break;
-            case 'K':
-                char_counter++;
-                while(line[char_counter] != ' '){
-                    if (isdigit(line[char_counter])) {
-                        // Convert character to integer and add to the number
-                        if(line[char_counter-1] == '.'){
-                            line_block.values.ijk[2] = line_block.values.ijk[2] + ((line[char_counter] - '0') * 0.1);
-                        }
-                        else{
-                            line_block.values.ijk[2] = line_block.values.ijk[2]* 10 + (line[char_counter] - '0');
-                        }
-                    }
-                    char_counter++;
-                }
-                ijk_words |= (1<<Z_AXIS);
-				break;
+                
+                break;                    
+               
 			default:
+                char_counter++;
                 break;
     	}
-        char_counter++;
-
     }
 
-    
-    printf("X-axis target: %f",line_block.values.xyz[X_AXIS]);
-    printf("Y-axis target: %f",line_block.values.xyz[Y_AXIS]);
-    printf("Z-axis target: %f",line_block.values.xyz[Z_AXIS]);
-    printf("Feed ratet: %f",line_block.values.feed);
-    printf("Spindle Speed: %f",line_block.values.spindle);
+
+
 
 
     // 2. set feed rate mode (G93, G94 — inverse time or per minute).
     if(line_block.modals.feed == G94){
         //set the feed rate in mm/min - convert to steps/second
-        line_state.feed_rate = (1/((line_block.values.feed / (mm_per_revoltuion * 60))*steps_per_revoltuion))*1000000;
-        if (line_state.feed_rate <= min_delay_us){
-            line_state.feed_rate = min_delay_us;
+        float feed_rate_interval = 0;
+        feed_rate_interval = (1/((line_block.values.feed / (mm_per_revoltuion * 60))*steps_per_revoltuion))*1000000;
+        if (feed_rate_interval <= min_delay_us){
+            feed_rate_interval = (float)min_delay_us;
+            line_block.values.feed = MAX_RPM;
         }
         //3. set feed rate (F).
         for(int i=0;i<3;i++){
-            steppers[i].minStepInterval = line_state.feed_rate;
+            steppers[i].minStepInterval = feed_rate_interval;
         }
+
     }
     else if(line_block.modals.feed == G93){
         //set estimated time(seconds) for move with largest amount of 
@@ -542,15 +513,17 @@ void parse_gcode(char *line) {
 
     }
 
+    line_state.feed_rate = line_block.values.feed;
+    printf("Feed rate: %.2f\n",(float)line_block.values.feed);
     //4. set spindle speed (S).
-    setSpindleSpeed(line_block.values.spindle);
-    
+    //setSpindleSpeed(line_block.values.spindle);
+    line_state.spindle_speed = line_block.values.spindle;
         
     //5. select tool (T).
     line_state.tool = line_block.values.toolNo;
     //6. change tool (M6).
     if(line_block.modals.toolChange == M6){
-        enableSpindle(0);
+        //enableSpindle(0);
         printf("Tool change required! Paused until Enter is pressed\n\r");
         while(scanf("")==-1){};
         printf("Tool changed. Program will now resume.\n\r");
@@ -566,7 +539,7 @@ void parse_gcode(char *line) {
             break;
         //stop spindle spinning
         case M5:
-            enableSpindle(0);
+            //enableSpindle(0);
             break;
         default:
             break;
@@ -810,6 +783,17 @@ void parse_gcode(char *line) {
         //settings_write_coord_data(SETTING_INDEX_G30,line_state.position);
     }   
     
+    printf("Motion: %d\n",line_block.modals.motion);
+    printf("X-axis target: %.2f\n",(float)line_block.values.xyz[X_AXIS]);
+    printf("Y-axis target: %.2f\n",(float)line_block.values.xyz[Y_AXIS]);
+    printf("Z-axis target: %.2f\n",(float)line_block.values.xyz[Z_AXIS]);
+    printf("Feed rate: %.2f\n",(float)line_block.values.feed);
+    printf("Spindle Speed: %.2f\n",(float)line_block.values.spindle);
+    printf("Radius: %.2f\n",(float)line_block.values.radius);
+    printf("Dwell: %.2f\n",(float)line_block.values.dwell);
+    printf("Tool No: %d\n",line_block.values.toolNo);
+
+
     if(line_block.modals.motion == G0){
         if(!axis_word){
             printf("No coordinates for rapid move");
@@ -834,7 +818,7 @@ void parse_gcode(char *line) {
                     return;
                 } // [No axis words in plane]
                 // Calculate the change in position along each selected axis
-                float x,y;
+                
                 x = line_block.values.xyz[axis_0]-line_state.position[axis_0]; // Delta x between current position and target
                 y = line_block.values.xyz[axis_1]-line_state.position[axis_1]; // Delta y between current position and target
 
@@ -846,7 +830,8 @@ void parse_gcode(char *line) {
                     if (line_block.modals.units == G20) {
                         line_block.values.radius *= MM_PER_INCH; 
                     }
-                    float h_x2_div_d = 4.0 * line_block.values.radius*line_block.values.radius - x*x - y*y;
+                    float h_x2_div_d = (4.0 * (line_block.values.radius*line_block.values.radius)) - (x*x) - (y*y);
+                    printf("%f",h_x2_div_d);
                     if (h_x2_div_d < 0) {
                         printf("Radius Error");
                         return; 
@@ -930,32 +915,38 @@ void parse_gcode(char *line) {
             for (int i = 0;i<3;i++){
                 steppers[i].minStepInterval = min_delay_us;
             }
-            prepareMovement(1, line_block.values.xyz[X_AXIS]);
-            prepareMovement(2, line_block.values.xyz[Y_AXIS]);
-            prepareMovement(3, line_block.values.xyz[Z_AXIS]);
+            prepareMovement(1, (float)line_block.values.xyz[X_AXIS]);
+            prepareMovement(2, (float)line_block.values.xyz[Y_AXIS]);
+            prepareMovement(3, (float)line_block.values.xyz[Z_AXIS]);
             runAndWait();
             break;
         case G1:
-            prepareMovement(1, line_block.values.xyz[X_AXIS]);
-            prepareMovement(2, line_block.values.xyz[Y_AXIS]);
-            prepareMovement(3, line_block.values.xyz[Z_AXIS]);
+            prepareMovement(1,(float) line_block.values.xyz[X_AXIS]);
+            prepareMovement(2, (float)line_block.values.xyz[Y_AXIS]);
+            prepareMovement(3, (float)line_block.values.xyz[Z_AXIS]);
             runAndWait();
             break;
         case G2:
-            motionArc(line_state.position, line_block.values.xyz, line_block.values.ijk, line_block.values.radius, 
-                line_state.feed_rate, line_state.modal.feed, axis_0, axis_1, axis_linear, true);
+            //motionArc(line_state.position, line_block.values.xyz, line_block.values.ijk, line_block.values.radius, 
+                //line_state.feed_rate, line_state.modal.feed, axis_0, axis_1, axis_linear, true);
             break;
         case G3:
-            motionArc(line_state.position, line_block.values.xyz, line_block.values.ijk, line_block.values.radius, 
-                line_state.feed_rate, line_state.modal.feed, axis_0, axis_1, axis_linear, false);
+            //motionArc(line_state.position, line_block.values.xyz, line_block.values.ijk, line_block.values.radius, 
+                //line_state.feed_rate, line_state.modal.feed, axis_0, axis_1, axis_linear, false);
             break;
         case G38_2:
-            probeCycle(line_block.values.xyz, line_state.feed_rate, line_state.modal.feed);
+            //probeCycle(line_block.values.xyz, line_state.feed_rate, line_state.modal.feed);
             break;
         default:
             break;
     }
-    memcpy(line_state.position, line_block.values.xyz, sizeof(line_block.values.xyz)); // gc_state.position[] = gc_block.values.xyz[]
+    line_state.position[X_AXIS] = line_block.values.xyz[X_AXIS];
+    line_state.position[Y_AXIS] = line_block.values.xyz[Y_AXIS];
+    line_state.position[Z_AXIS] = line_block.values.xyz[Z_AXIS];
+    printf("X-axis Position: %.2f\n",(float)line_state.position[X_AXIS]);
+    printf("Y-axis Position: %.2f\n",(float)line_state.position[Y_AXIS]);
+    printf("Z-axis Position: %.2f\n",(float)line_state.position[Z_AXIS]);
+    //memcpy(line_state.position, line_block.values.xyz, sizeof(line_block.values.xyz)); // gc_state.position[] = gc_block.values.xyz[]
 
 
 
@@ -993,8 +984,8 @@ void parse_gcode(char *line) {
             //     return;                    
             // } 
             memcpy(line_state.coord_system,coordinate_data,sizeof(coordinate_data));
-            enableSpindle(0);
-            coolant_stop();		
+            //enableSpindle(0);
+            //coolant_stop();		
             
             
             printf("Program Ended");

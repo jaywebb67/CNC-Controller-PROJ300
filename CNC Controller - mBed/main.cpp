@@ -2,6 +2,9 @@
 
 #include "steppers.hpp"
 #include "jogButtons.hpp"
+#include "Gcode.hpp"
+#include <cstdio>
+#include <string>
 //#include "clock_config.hpp"
 
 // Thread motorMovement;
@@ -18,8 +21,12 @@ int main()
     volatile int acceleration = 0;
     volatile int max_speed = 0;
     volatile int mode = 0;
-
-
+    
+    char *g_codeLine = (char *)malloc(MAX_CHARACTER_PER_LINE * sizeof(char)); // Allocate memory for input
+    if (g_codeLine == NULL) {
+        printf("Memory allocation failed.");
+        return 1;
+    }
     printf("\n\rEnter the acceleration rate: " );
     
     if(scanf("%d",&acceleration) ==1){
@@ -50,28 +57,34 @@ int main()
 
     while (true) {
 
-        if ((mode == 1)&(skip == 0)){
+        if ((mode == 1)&&(skip == 0)){
             jogEnable(1);
             skip = 1;
 
         }
-        else if ((mode == 2)&(skip == 0)) {
+        else if ((mode == 2)&&(skip == 0)) {
 
-            printf("Select which axis to move (X,Y,Z): ");
-            scanf("%d",&axis);
-            printf("%d\n\r",axis);
+            printf("Enter G-code line: ");
+            fscanf(stdin," %[^\n]",g_codeLine);
+            printf("%s\n\r", g_codeLine);
+            parse_gcode(g_codeLine);
 
-            printf("Select the amount of steps to take: ");
-            scanf("%ld",&steps);
-            printf("%ld\n\r",steps);
+            // printf("Select which axis to move (X,Y,Z): ");
+            // scanf("%d",&axis);
+            // printf("%d\n\r",axis);
 
-            prepareMovement(axis, steps);
-            prepareMovement(2, 2* steps);
-            prepareMovement(3, 3* steps);
-            runAndWait();
+            // printf("Select the amount of steps to take: ");
+            // scanf("%ld",&steps);
+            // printf("%ld\n\r",steps);
+
+            // prepareMovement(axis, steps);
+            // prepareMovement(2, 2* steps);
+            // prepareMovement(3, 3* steps);
+            // runAndWait();
         }
         else{
             ThisThread::sleep_for(5s);
         }
     }
+    free(g_codeLine);
 }

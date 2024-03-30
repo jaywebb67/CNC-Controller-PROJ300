@@ -91,17 +91,19 @@ void stepperInit(volatile int accel,volatile int max_speed){
     steppers[0].stepFunc = xStep;
     steppers[0].acceleration = accel;
     steppers[0].minStepInterval = max_speed;
+    //steppers[0].stepCount = 0;
 
     steppers[1].dirFunc = yDir;
     steppers[1].stepFunc = yStep;
     steppers[1].acceleration = accel;
     steppers[1].minStepInterval = max_speed;
+    //steppers[1].stepCount = 0;
 
     steppers[2].dirFunc = zDir;
     steppers[2].stepFunc = zStep;
     steppers[2].acceleration = accel;
     steppers[2].minStepInterval = max_speed;
-
+    //steppers[2].stepCount = 0;
 
     stepperEN = 1;
 
@@ -143,28 +145,37 @@ float getDurationOfAcceleration(volatile stepperInfo& s, unsigned int numSteps) 
   return totalDuration;
 }
 
-void prepareMovement(int whichMotor, long steps) {
-  volatile stepperInfo& si = steppers[whichMotor-1];
-  si.dirFunc( steps > 0 ? 1 : 0 );
-  si.dir = steps > 0 ? 1 : -1;
-  si.totalSteps = abs(steps);
-  resetStepper(si);
-  
-  remainingSteppersFlag |= (1 << (whichMotor-1));
+void prepareMovement(int whichMotor, float target_distance) {
+    volatile stepperInfo& si = steppers[whichMotor-1];
+    long targetSteps = (target_distance/mm_per_revoltuion)*steps_per_revoltuion;
+    long steps = targetSteps - si.stepPosition;
+    printf("Target steps: %ld\r\n",targetSteps);
+    printf("Step count: %ld\n\r",si.stepPosition);
+    printf("Steps: %ld\r\n",steps);
+    if(steps == 0){
+        return;
+    }
+    
+    si.dirFunc( steps > 0 ? 1 : 0 );
+    si.dir = steps > 0 ? 1 : -1;
+    si.totalSteps = abs(steps);
+    resetStepper(si);
 
-  unsigned long stepsAbs = abs(steps);
+    remainingSteppersFlag |= (1 << (whichMotor-1));
 
-  if ( (2 * si.estStepsToSpeed) < stepsAbs ) {
-    // there will be a period of time at full speed
-    unsigned long stepsAtFullSpeed = stepsAbs - 2 * si.estStepsToSpeed;
-    float accelDecelTime = getDurationOfAcceleration(si, si.estStepsToSpeed);
-    si.estTimeForMove = 2 * accelDecelTime + stepsAtFullSpeed * si.minStepInterval;
-  }
-  else {
-    // will not reach full speed before needing to slow down again
-    float accelDecelTime = getDurationOfAcceleration( si, stepsAbs / 2 );
-    si.estTimeForMove = 2 * accelDecelTime;
-  }
+    unsigned long stepsAbs = abs(steps);
+
+    if ( (2 * si.estStepsToSpeed) < stepsAbs ) {
+        // there will be a period of time at full speed
+        unsigned long stepsAtFullSpeed = stepsAbs - 2 * si.estStepsToSpeed;
+        float accelDecelTime = getDurationOfAcceleration(si, si.estStepsToSpeed);
+        si.estTimeForMove = 2 * accelDecelTime + stepsAtFullSpeed * si.minStepInterval;
+    }
+    else {
+        // will not reach full speed before needing to slow down again
+        float accelDecelTime = getDurationOfAcceleration( si, stepsAbs / 2 );
+        si.estTimeForMove = 2 * accelDecelTime;
+    }
 }
 
 void adjustSpeedScales() {

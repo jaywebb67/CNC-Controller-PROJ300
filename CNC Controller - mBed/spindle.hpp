@@ -4,15 +4,15 @@
 
 
 
-void enableSpindle(bool EN);
+// void enableSpindle(bool EN);
 
-void setSpindleSpeed(double RPM);
-
-
+// void setSpindleSpeed(double RPM);
 
 
 
-void coolant_stop();
+
+
+// void coolant_stop();
 
 
 

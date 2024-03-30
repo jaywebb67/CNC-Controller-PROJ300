@@ -26,6 +26,7 @@
 #define Y_AXIS 1
 #define Z_AXIS 2
 
+#define MAX_RPM 4411.76
 #define min_delay_us 34 
 #define max_acceleration 1000
 #define mm_per_revoltuion 4
@@ -85,10 +86,10 @@ typedef enum {
 void stepperInit(int accel, int max_speed);
 void disableStepperInterrupt(int axis);
 void runAndWait();
-void prepareMovement(int whichMotor, long steps);
-void motionArc(float *position, float *target, float *offset, float radius, float feed_rate,
-            uint8_t invert_feed_rate, uint8_t axis_0, uint8_t axis_1, uint8_t axis_linear, uint8_t is_clockwise_arc);
-void probeCycle(float *target, float feed_rate, uint8_t invert_feed_rate);
+void prepareMovement(int whichMotor, float steps);
+// void motionArc(float *position, float *target, float *offset, float radius, float feed_rate,
+//             uint8_t invert_feed_rate, uint8_t axis_0, uint8_t axis_1, uint8_t axis_linear, uint8_t is_clockwise_arc);
+// void probeCycle(float *target, float feed_rate, uint8_t invert_feed_rate);
 
 // void move_axis_stepper_motor(int axis, uint32_t steps,int dir);
 // void oneRevolution(uint16_t microstepping,int axis,int dir);
