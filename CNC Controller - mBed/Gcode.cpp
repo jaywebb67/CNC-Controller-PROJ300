@@ -515,15 +515,17 @@ void parse_gcode(char *line) {
 
     line_state.feed_rate = line_block.values.feed;
     printf("Feed rate: %.2f\n",(float)line_block.values.feed);
+
+
     //4. set spindle speed (S).
-    //setSpindleSpeed(line_block.values.spindle);
+    setSpindleSpeed(line_block.values.spindle);
     line_state.spindle_speed = line_block.values.spindle;
         
     //5. select tool (T).
     line_state.tool = line_block.values.toolNo;
     //6. change tool (M6).
     if(line_block.modals.toolChange == M6){
-        //enableSpindle(0);
+        enableSpindle(0,0);
         printf("Tool change required! Paused until Enter is pressed\n\r");
         while(scanf("")==-1){};
         printf("Tool changed. Program will now resume.\n\r");
@@ -533,13 +535,15 @@ void parse_gcode(char *line) {
     switch(line_block.modals.spindleTurn){
         //clockwise at current programmed spindle speed
         case M3:
+            enableSpindle(1,1);
             break;
         //CCW at current programmed spindle speed 
         case M4:
+            enableSpindle(1,0);
             break;
         //stop spindle spinning
         case M5:
-            //enableSpindle(0);
+            enableSpindle(0,0);
             break;
         default:
             break;
@@ -550,7 +554,7 @@ void parse_gcode(char *line) {
   
     //8. coolant on or off (M7, M8, M9).
     if(line_state.modal.coolant != line_block.modals.coolant) {
-        //coolant_run(line_block.modals.coolant);
+        coolantEnable(line_block.modals.coolant);
         line_state.modal.coolant = line_block.modals.coolant;
     }
 

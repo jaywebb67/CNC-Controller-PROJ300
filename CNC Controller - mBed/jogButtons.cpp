@@ -1,5 +1,5 @@
 #include "jogButtons.hpp"
-#include "steppers.hpp"
+
 
 Thread jogThread;
 EventQueue jogbuttonQueue;
@@ -7,11 +7,11 @@ EventQueue jogbuttonQueue;
 InterruptIn xjog_plus(xJog_plus_pin);
 InterruptIn xjog_minus(zJog_minus_pin);
 
-// InterruptIn yjog_plus(yJog_plus_pin);
-// InterruptIn yjog_minus(yJog_minus_pin);
+InterruptIn yjog_plus(yJog_plus_pin);
+InterruptIn yjog_minus(yJog_minus_pin);
 
-// InterruptIn zjog_plus(zJog_plus_pin);
-// InterruptIn zjog_minus(zJog_minus_pin);
+InterruptIn zjog_plus(zJog_plus_pin);
+InterruptIn zjog_minus(zJog_minus_pin);
 
 void xplusHandler();
 void xminusHandler();
@@ -34,84 +34,114 @@ void jogEnable(bool state){
         xjog_plus.rise(xplusHandler);
         xjog_minus.rise(xminusHandler);
 
-        // yjog_plus.rise(yplusHandler);
-        // yjog_minus.rise(yminusHandler);
+        yjog_plus.rise(yplusHandler);
+        yjog_minus.rise(yminusHandler);
 
-        // zjog_plus.rise(zplusHandler);
-        // zjog_minus.rise(zminusHandler);
+        zjog_plus.rise(zplusHandler);
+        zjog_minus.rise(zminusHandler);
     }
     else{
         xjog_plus.rise(NULL);
         xjog_minus.rise(NULL);
 
-        // yjog_plus.rise(NULL);
-        // yjog_minus.rise(NULL);
+        yjog_plus.rise(NULL);
+        yjog_minus.rise(NULL);
 
-        // zjog_plus.rise(NULL);
-        // zjog_minus.rise(NULL);
+        zjog_plus.rise(NULL);
+        zjog_minus.rise(NULL);
     }
 
 }
 
 void jogCallback(int axis, int dir){
-    jogEnable(0);
-    int i = 0;
-    uint32_t steps = 4;
-    GPIOB->ODR &= ~(1U << 9);
+
+    stepperInfoLock.lock();
+    volatile stepperInfo& si = steppers[axis - 1];
+    si.stepCount = 0;
+    si.dir = dir;
+    stepperInfoLock.unlock();
+
+    GPIOB->BSRR = (1U << (9+16));
     switch(axis){
         case 1:
-            GPIOB->ODR |= (dir << 4);
-            while(i<=steps){
-                GPIOB->ODR |= (1U << 15);
-                wait_us(5000);
-                GPIOB->ODR &= ~(1U << 15);
-                wait_us(5000);
-                i++;
+            stepperInfoLock.lock();
+            si.dirFunc(dir);
+            while(si.stepCount<=steps_per_increment){
+                Xstep_HIGH
+                wait_us(1500);
+                Xstep_LOW
+                wait_us(1500);
+                stepperInfoLock.lock();
+                si.stepCount++;
+                si.stepPosition+=si.dir;
+                stepperInfoLock.unlock();
             }
-            GPIOB->ODR |= (1U << 9);
+            stepperInfoLock.unlock();
+            GPIOB->BSRR = (1U << 9);
             break;
         case 2:
-            GPIOB->ODR |= (dir << 3);
-            for(int i = 0;i<=steps;i++){
-                GPIOB->ODR |= (1U << 8);
-                wait_us(625);
-                GPIOB->ODR &= ~(1U << 8);
-                wait_us(625);
+            stepperInfoLock.lock();
+            si.dirFunc(dir);
+            while(si.stepCount<=steps_per_increment){
+                Ystep_HIGH
+                wait_us(1500);
+                Ystep_LOW
+                wait_us(1500);
+                stepperInfoLock.lock();
+                si.stepCount++;
+                si.stepPosition+=si.dir;
+                stepperInfoLock.unlock();
             }
+            stepperInfoLock.unlock();
+            GPIOB->BSRR = (1U << 9);
             break;
         case 3:
-            GPIOB->ODR |= (dir << 6);
-            for(int i = 0;i<=steps;i++){
-                GPIOB->ODR |= (1U << 5);
-                wait_us(625);
-                GPIOB->ODR &= ~(1U << 5);
-                wait_us(625);
+            stepperInfoLock.lock();
+            si.dirFunc(dir);
+            while(si.stepCount<=steps_per_increment){
+                Zstep_HIGH
+                wait_us(1500);
+                Zstep_LOW
+                wait_us(1500);
+                stepperInfoLock.lock();
+                si.stepCount++;
+                si.stepPosition+=si.dir;
+                stepperInfoLock.unlock();
             }
+            stepperInfoLock.unlock();
+            GPIOB->BSRR = (1U << 9);
+            break;
+        default:
             break;
     }
-    jogEnable(1);
 }
 
 void xplusHandler(){
+    wait_us(switchBounce_delayms * 1000);
     jogbuttonQueue.call(jogCallback,1,1);
 }
 
 void xminusHandler(){
+    wait_us(switchBounce_delayms * 1000);
     jogbuttonQueue.call(jogCallback,1,0);
 }
 
 void yplusHandler(){
+    wait_us(switchBounce_delayms * 1000);
     jogbuttonQueue.call(jogCallback,2,1);
 }
 
 void yminusHandler(){
+    wait_us(switchBounce_delayms * 1000);
     jogbuttonQueue.call(jogCallback,2,0);
 }
 
 void zplusHandler(){
+    wait_us(switchBounce_delayms * 1000);
     jogbuttonQueue.call(jogCallback,3,1);
 }
 
 void zminusHandler(){
+    wait_us(switchBounce_delayms * 1000);
     jogbuttonQueue.call(jogCallback,3,0);
 }

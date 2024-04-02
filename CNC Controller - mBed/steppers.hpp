@@ -65,6 +65,12 @@ struct stepperInfo {
 
 extern volatile stepperInfo steppers[N_AXIS];
 
+extern Mutex stepperInfoLock;
+
+extern EventQueue motorQueueX;
+extern EventQueue motorQueueY;
+extern EventQueue motorQueueZ;
+
 typedef enum {
 
     acceleration = 1,

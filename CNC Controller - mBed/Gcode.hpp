@@ -14,6 +14,9 @@
 #include <cctype>
 #include <cstdint>
 #include "spindle.hpp"
+#include "coolant.hpp"
+
+
 #define MAX_CHARACTER_PER_LINE 256
 
 typedef enum {
@@ -129,7 +132,6 @@ typedef enum {
 	M7,
 	M8,
 	M9,
-	M7M8,
 } coolant_t;
 
 typedef enum {
@@ -179,7 +181,7 @@ typedef struct line_values_t {
     float dwell;     // G10 or dwell parameters
     // float q;      // G82 peck drilling
     float radius;    // Arc radius
-    float spindle;   // Spindle speed
+    short spindle;   // Spindle speed
     uint8_t toolNo;  // Tool selection
     float xyz[3];    // X,Y,Z Translational axes
 
@@ -190,7 +192,7 @@ typedef struct line_values_t {
     //n(0), 
     dwell(0.0f), 
     radius(0.0f), 
-    spindle(0.0f), 
+    spindle(0), 
     toolNo(0), 
     xyz{0.0f, 0.0f, 0.0f} {}
 } line_values_t;
@@ -214,7 +216,7 @@ extern lineStruct_block_t line_block;
 typedef struct lineStruct_state_t{
     lineModals_t modal;
     
-    float spindle_speed;          // RPM
+    short spindle_speed;          // RPM
     float feed_rate;              // Millimeters/min
     uint8_t tool;                 // Tracks tool number. NOT USED.
     //int32_t line_number;          // Last line number sent
@@ -229,7 +231,7 @@ typedef struct lineStruct_state_t{
 
     lineStruct_state_t():
     modal(),
-    spindle_speed(0.0f),
+    spindle_speed(0),
     feed_rate(0.0f),
     tool(0),
     position{0.0f,0.0f,0.0f},
