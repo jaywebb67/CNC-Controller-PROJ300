@@ -6,11 +6,17 @@
 */
 
 #include "Gcode.hpp"
+
+#include "limits.hpp"
+
 #include <cctype>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <string> 
+
+
+
 using namespace std;
 
 
@@ -680,14 +686,14 @@ void parse_gcode(char *line) {
         for (int i=0;i<N_AXIS;i++){
             steppers[i].minStepInterval = min_delay_us;
         }
-        prepareMovement(1,line_block.values.xyz[X_AXIS]);
-        prepareMovement(2,line_block.values.xyz[Y_AXIS]);
-        prepareMovement(3,line_block.values.xyz[Z_AXIS]);
+        prepareMovement(X_AXIS,line_block.values.xyz[X_AXIS]);
+        prepareMovement(Y_AXIS,line_block.values.xyz[Y_AXIS]);
+        prepareMovement(Z_AXIS,line_block.values.xyz[Z_AXIS]);
         runAndWait();
 
-        prepareMovement(1,parameter_data[X_AXIS]);
-        prepareMovement(2,parameter_data[Y_AXIS]);
-        prepareMovement(3,parameter_data[Z_AXIS]);
+        prepareMovement(X_AXIS,parameter_data[X_AXIS]);
+        prepareMovement(Y_AXIS,parameter_data[Y_AXIS]);
+        prepareMovement(Z_AXIS,parameter_data[Z_AXIS]);
         runAndWait();
 
         memcpy(line_state.position, parameter_data, sizeof(parameter_data));
@@ -911,7 +917,7 @@ void parse_gcode(char *line) {
         }
     }
 
-
+    uint8_t limitsFlag = 0;
     //20. perform motion (G0 to G3, G80 to G89), as modified (possibly) by G53.
     switch(line_block.modals.motion){
         //perform traverse move to location
@@ -919,24 +925,38 @@ void parse_gcode(char *line) {
             for (int i = 0;i<3;i++){
                 steppers[i].minStepInterval = min_delay_us;
             }
-            prepareMovement(1, (float)line_block.values.xyz[X_AXIS]);
-            prepareMovement(2, (float)line_block.values.xyz[Y_AXIS]);
-            prepareMovement(3, (float)line_block.values.xyz[Z_AXIS]);
-            runAndWait();
-            break;
+            limitsFlag = softLimitCheck(line_block);
+            if(!limitsFlag){
+                prepareMovement(X_AXIS, (float)line_block.values.xyz[X_AXIS]);
+                prepareMovement(Y_AXIS, (float)line_block.values.xyz[Y_AXIS]);
+                prepareMovement(Z_AXIS, (float)line_block.values.xyz[Z_AXIS]);
+                runAndWait();
+                break;
+            }
+            else{
+                printf("Returning to menu - move exceeds axis' limits\n\r");
+                return;
+            }
         case G1:
-            prepareMovement(1,(float) line_block.values.xyz[X_AXIS]);
-            prepareMovement(2, (float)line_block.values.xyz[Y_AXIS]);
-            prepareMovement(3, (float)line_block.values.xyz[Z_AXIS]);
-            runAndWait();
-            break;
+            limitsFlag = softLimitCheck(line_block);
+            if(!limitsFlag){
+                prepareMovement(X_AXIS, (float)line_block.values.xyz[X_AXIS]);
+                prepareMovement(Y_AXIS, (float)line_block.values.xyz[Y_AXIS]);
+                prepareMovement(Z_AXIS, (float)line_block.values.xyz[Z_AXIS]);
+                runAndWait();
+                break;
+            }
+            else{
+                printf("Returning to menu - move exceeds axis' limits\n\r");
+                return;
+            }
         case G2:
-            //motionArc(line_state.position, line_block.values.xyz, line_block.values.ijk, line_block.values.radius, 
-                //line_state.feed_rate, line_state.modal.feed, axis_0, axis_1, axis_linear, true);
+            motionArc(line_state.position, line_block.values.xyz, line_block.values.ijk, line_block.values.radius, 
+                line_state.feed_rate, line_state.modal.feed, axis_0, axis_1, axis_linear, true);
             break;
         case G3:
-            //motionArc(line_state.position, line_block.values.xyz, line_block.values.ijk, line_block.values.radius, 
-                //line_state.feed_rate, line_state.modal.feed, axis_0, axis_1, axis_linear, false);
+            motionArc(line_state.position, line_block.values.xyz, line_block.values.ijk, line_block.values.radius, 
+                line_state.feed_rate, line_state.modal.feed, axis_0, axis_1, axis_linear, false);
             break;
         case G38_2:
             //probeCycle(line_block.values.xyz, line_state.feed_rate, line_state.modal.feed);

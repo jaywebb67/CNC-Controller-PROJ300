@@ -9,6 +9,14 @@
 
 #define spindleAccel 0.001
 
+extern PwmOut spindleA;
+
+extern PwmOut spindleB;
+
+extern DigitalOut spindleEN;
+
+
+
 void spindleInit();
 void enableSpindle(bool EN, bool dir);
 

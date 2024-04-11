@@ -13,7 +13,7 @@ void coolantInit(){
 }
 
 
-void coolantEnable(coolant_t type){
+void coolantEnable(uint8_t type){
 
     switch(type){
         case M7:

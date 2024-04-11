@@ -5,22 +5,30 @@
 
 #define stepperEN_pin PB_9
 #define xdir_pin PB_4
+#define X_DIRECTION_BIT 4
 #define xstep_pin PB_15_ALT1
+#define X_STEP_BIT 15
 #define ydir_pin PB_3
+#define Y_DIRECTION_BIT 3
 #define ystep_pin PB_8
+#define Y_STEP_BIT 8
 #define zdir_pin PB_6
+#define Z_DIRECTION_BIT 6
 #define zstep_pin PB_5
+#define Z_STEP_BIT 5
 
 #define N_AXIS 3
 
-#define Xstep_HIGH   GPIOB->BSRR = (1U << 15);
-#define Xstep_LOW  GPIOB->BSRR = (1U << (15+16));
+#define Xstep_HIGH   GPIOB->BSRR = (1U << X_STEP_BIT);
+#define Xstep_LOW  GPIOB->BSRR = (1U << (X_STEP_BIT+16));
 
-#define Ystep_HIGH   GPIOB->BSRR = (1U << 8);
-#define Ystep_LOW  GPIOB->BSRR = (1U << (8+16));
+#define Ystep_HIGH   GPIOB->BSRR = (1U << Y_STEP_BIT);
+#define Ystep_LOW  GPIOB->BSRR = (1U << (Y_STEP_BIT+16));
 
-#define Zstep_HIGH   GPIOB->BSRR = (1U << 5);
-#define Zstep_LOW  GPIOB->BSRR = (1U << (5+16));
+#define Zstep_HIGH   GPIOB->BSRR = (1U << Z_STEP_BIT);
+#define Zstep_LOW  GPIOB->BSRR = (1U << (Z_STEP_BIT+16));
+
+#define STEP_MASK ((1U<<X_STEP_BIT)|(1U<<Y_STEP_BIT)|(1U<<Z_STEP_BIT))
 
 #define X_AXIS 0
 #define Y_AXIS 1
@@ -33,6 +41,19 @@
 #define steps_per_revoltuion 1600
 
 #define MM_PER_INCH 25.40
+
+#define M_PI    3.14159265358979323846
+#define ARC_ANGULAR_TRAVEL_EPSILON 5E-7 
+#define N_ARC_CORRECTION 12
+
+extern DigitalInOut stepperEN;
+extern DigitalOut x_dir;
+extern DigitalOut y_dir;
+extern DigitalOut z_dir;
+
+
+
+
 
 struct stepperInfo {
   // externally defined parameters
@@ -93,9 +114,10 @@ void stepperInit(int accel, int max_speed);
 void disableStepperInterrupt(int axis);
 void runAndWait();
 void prepareMovement(int whichMotor, float steps);
-// void motionArc(float *position, float *target, float *offset, float radius, float feed_rate,
-//             uint8_t invert_feed_rate, uint8_t axis_0, uint8_t axis_1, uint8_t axis_linear, uint8_t is_clockwise_arc);
-// void probeCycle(float *target, float feed_rate, uint8_t invert_feed_rate);
+void motionArc(float *position, float *target, float *offset, float radius, float feed_rate,
+            uint8_t invert_feed_rate, uint8_t axis_0, uint8_t axis_1, uint8_t axis_linear, uint8_t is_clockwise_arc);
+void homeCycle();
+void probeCycle(float *target, float feed_rate, uint8_t invert_feed_rate);
 
 // void move_axis_stepper_motor(int axis, uint32_t steps,int dir);
 // void oneRevolution(uint16_t microstepping,int axis,int dir);

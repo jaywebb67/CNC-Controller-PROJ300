@@ -1,11 +1,12 @@
 /*
 
- * Gcode.h
+ *  Gcode.h
  *
  *  Created on: Dec 20, 2023
- *      Author: jaywe
+ *  Author: jaywe
 
 */
+
 #ifndef GCODE_HPP_
 #define GCODE_HPP_
 
@@ -15,6 +16,7 @@
 #include <cstdint>
 #include "spindle.hpp"
 #include "coolant.hpp"
+
 
 
 #define MAX_CHARACTER_PER_LINE 256

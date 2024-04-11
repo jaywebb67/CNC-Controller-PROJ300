@@ -4,6 +4,8 @@
 
 
 #include "mbed.h"
+#include <cstdint>
+
 
 #define floodPin_No 5
 #define mistPin_No 10
@@ -15,7 +17,7 @@
 
 void coolantInit();
 
-void coolantEnable(bool EN);
+void coolantEnable(uint8_t type);
 
 
 #endif
