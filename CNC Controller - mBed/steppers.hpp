@@ -3,6 +3,7 @@
 
 #include "mbed.h"
 
+
 #define stepperEN_pin PB_9
 #define xdir_pin PB_4
 #define X_DIRECTION_BIT 4
@@ -110,7 +111,7 @@ typedef enum {
 
 } axis_t;
 
-void stepperInit(int accel, int max_speed);
+void stepperInit();
 void disableStepperInterrupt(int axis);
 void runAndWait();
 void prepareMovement(int whichMotor, float steps);

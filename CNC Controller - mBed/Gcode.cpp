@@ -37,10 +37,7 @@ float parseValue(const char* valueString) {
     if (*endPtr != '\0') {
         // Conversion failed, handle error
         printf("Error: Invalid numerical value '%s'\n", valueString);
-        // You might want to return a special value indicating an error,
-        // or throw an exception depending on your error handling strategy.
     }
-
     return value;
 }
 
@@ -89,6 +86,28 @@ void updateBlockValue(char command, const float value){
         default:
             break;
     }
+}
+
+int gCodeMode(){
+
+    char *g_codeLine = (char *)malloc(MAX_CHARACTER_PER_LINE * sizeof(char)); // Allocate memory for input
+    if (g_codeLine == NULL) {
+        printf("Memory allocation failed.");
+        return 1;
+    }
+    const char escape = '$';
+    const char* escPtr = &escape;
+    while(1){
+        printf("Enter G-code line (Enter '$' to return to main menu): ");
+        scanf(" %[^\n]",g_codeLine);
+        printf("%s\n\r", g_codeLine);
+        if(strcmp(g_codeLine,escPtr) == 0){
+            break;
+        }
+        parse_gcode(g_codeLine);
+    }
+    free(g_codeLine);
+    return 0;
 }
 
 char valueString[20]; // Assuming maximum length of value string
@@ -785,12 +804,12 @@ void parse_gcode(char *line) {
     }
 
     else if( line_block.nonModalFlag & (1U << G28_1)){
-        //settings_write_coord_data(SETTING_INDEX_G28,line_state.position);
+        settings_write_coord_data(SETTING_INDEX_G28,line_state.position);
         
     }
 
     else if( line_block.nonModalFlag & (1U << G30_1)){
-        //settings_write_coord_data(SETTING_INDEX_G30,line_state.position);
+        settings_write_coord_data(SETTING_INDEX_G30,line_state.position);
     }   
     
     printf("Motion: %d\n",line_block.modals.motion);
@@ -959,7 +978,7 @@ void parse_gcode(char *line) {
                 line_state.feed_rate, line_state.modal.feed, axis_0, axis_1, axis_linear, false);
             break;
         case G38_2:
-            //probeCycle(line_block.values.xyz, line_state.feed_rate, line_state.modal.feed);
+            probeCycle(line_block.values.xyz, line_state.feed_rate, line_state.modal.feed);
             break;
         default:
             break;
@@ -980,13 +999,7 @@ void parse_gcode(char *line) {
     // refill and can only be resumed by the cycle start run-time command.
     line_state.modal.stopping = line_block.modals.stopping;
     if (line_state.modal.stopping) { 
-	    //protocol_buffer_synchronize(); // Sync and finish all remaining buffered motions before moving on.
-	    // if (line_state.modal.stopping == (M0||M1)) {
-	    //     if (sys.state != STATE_CHECK_MODE) {
-		//         //bit_true_atomic(sys_rt_exec_state, EXEC_FEED_HOLD); // Use feed hold for program pause.
-		//         //protocol_execute_realtime(); // Execute suspend.
-	    //     }
-        // } else { // == PROGRAM_FLOW_COMPLETED
+            // == PROGRAM_FLOW_COMPLETED
             // Upon program complete, only a subset of g-codes reset to certain defaults, according to 
             // LinuxCNC's program end descriptions and testing. Only modal groups [G-code 1,2,3,5,7,12]
             // and [M-code 7,8,9] reset to [G1,G17,G90,G94,G40,G54,M5,M9,M48]. The remaining modal groups
@@ -1003,15 +1016,14 @@ void parse_gcode(char *line) {
             
             // Execute coordinate change and spindle/coolant stop.
 
-            // if (!(settings_read_coord_data(line_state.modal.coordSystem,coordinate_data))) { 
-            //     printf("Failed to read coordinate data settings from eeprom");
-            //     return;                    
-            // } 
+            if (!(settings_read_coord_data(line_state.modal.coordSystem,coordinate_data))) { 
+                printf("Failed to read coordinate data settings from flash");
+                return;                    
+            } 
             memcpy(line_state.coord_system,coordinate_data,sizeof(coordinate_data));
-            //enableSpindle(0);
-            //coolant_stop();		
-            
-            
+            enableSpindle(0,0);
+            coolantEnable(M9);		
+                        
             printf("Program Ended");
         
         line_state.modal.stopping = resume; // Reset program flow.

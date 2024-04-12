@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include "system.hpp"
+#include "peripherals.hpp"
 
 using namespace std;
 
@@ -73,19 +74,16 @@ void limitsEnable(bool EN){
 uint8_t softLimitCheck(lineStruct_block_t line_structure){
 
     uint8_t limitsFlag = 0;
-    volatile const float xMaxTravel = 300.0f;//eepromReadSettings(xMaxTravel);
-    volatile const float yMaxTravel = 180.0f;//eepromReadSettings(yMaxTravel);
-    volatile const float zMaxTravel = 60.0f;//eepromReadSettings(zMaxTravel);
 
-    if (line_structure.values.xyz[X_AXIS] >= xMaxTravel){
+    if (line_structure.values.xyz[X_AXIS] >= settings.max_travel[X_AXIS]){
         printf("X-axis planned move exceeds axis limit\n\r");
         limitsFlag |= (1U << X_AXIS);
     }
-    else if(line_structure.values.xyz[Y_AXIS] >= yMaxTravel){
+    else if(line_structure.values.xyz[Y_AXIS] >= settings.max_travel[Y_AXIS]){
         printf("Y-axis planned move exceeds axis limit\n\r");
         limitsFlag |= (1U << Y_AXIS);
     }
-    else if (line_structure.values.xyz[Z_AXIS] >= zMaxTravel) {
+    else if (line_structure.values.xyz[Z_AXIS] >= settings.max_travel[Z_AXIS]) {
         printf("Z-axis planned move exceeds axis limit\n\r");
         limitsFlag |= (1U << Z_AXIS);
     }
@@ -113,6 +111,7 @@ void limitPullOff(uint8_t axis){
             si.dirFunc(si.dir);
             stepperInfoLock.unlock();
             while(si.stepCount<=400){
+                while(holdFlag){};
                 Xstep_HIGH
                 wait_us(1500);
                 Xstep_LOW
@@ -131,6 +130,7 @@ void limitPullOff(uint8_t axis){
             si.dirFunc(si.dir);
             stepperInfoLock.unlock();
             while(si.stepCount<=400){
+                while(holdFlag){};
                 Ystep_HIGH
                 wait_us(1500);
                 Ystep_LOW
@@ -149,6 +149,7 @@ void limitPullOff(uint8_t axis){
             si.dirFunc(si.dir);
             stepperInfoLock.unlock();
             while(si.stepCount<=400){
+                while(holdFlag){};
                 Ystep_HIGH
                 wait_us(1500);
                 Ystep_LOW
@@ -219,7 +220,9 @@ bool limitSwitchTriggered(uint8_t axis){
 
 void pullOffMotion(uint8_t axis){
     float steps = settings.homing_pulloff * settings.steps_per_mm[axis];
+    stepperEN = 0;
     for (int i = 0;i<=steps;i++){
+        while(holdFlag){};
         switch(axis){
             case X_AXIS:
                 Xstep_HIGH
@@ -228,6 +231,7 @@ void pullOffMotion(uint8_t axis){
                 wait_us(300);
                 break;
             case Y_AXIS:
+
                 Ystep_HIGH
                 wait_us(300);
                 Ystep_LOW
@@ -241,6 +245,7 @@ void pullOffMotion(uint8_t axis){
                 break;
         }
     }
+    stepperEN = 1;
     return;
 }
 
@@ -260,12 +265,13 @@ void limitsHOME(uint8_t cycle_mask){
         }
         
     }
-    
+    stepperEN = 0;
     if(cycle_mask & bit(X_AXIS)){
         steps[X_AXIS] = target[X_AXIS] - steppers[X_AXIS].stepPosition;
         steppers[X_AXIS].dirFunc( steps[X_AXIS] >(long)0 ? 1 : 0 );
         steppers[X_AXIS].dir = steps[X_AXIS] > 0 ? 1 : -1;
         while (!limitSwitchTriggered(X_AXIS)) {
+            while(holdFlag){};
             Xstep_HIGH
             wait_us(steppers[X_AXIS].minStepInterval);
             Xstep_LOW
@@ -279,6 +285,7 @@ void limitsHOME(uint8_t cycle_mask){
         steppers[Y_AXIS].dirFunc( steps[Y_AXIS] >(long)0 ? 1 : 0 );
         steppers[Y_AXIS].dir = steps[Y_AXIS] > 0 ? 1 : -1;
         while (!limitSwitchTriggered(Y_AXIS)) {
+            while(holdFlag){};
             Ystep_HIGH
             wait_us(steppers[Y_AXIS].minStepInterval);
             Ystep_LOW
@@ -293,6 +300,7 @@ void limitsHOME(uint8_t cycle_mask){
         steppers[Z_AXIS].dir = steps[Z_AXIS] > 0 ? 1 : -1;
         //step motor until limit switch triggered
         while (!limitSwitchTriggered(Z_AXIS)) {
+            while(holdFlag){};
             Zstep_HIGH
             wait_us(steppers[Z_AXIS].minStepInterval);
             Zstep_LOW
@@ -301,6 +309,7 @@ void limitsHOME(uint8_t cycle_mask){
         // Perform pull-off motion for Z-axis
         pullOffMotion(Z_AXIS);
     }
+    stepperEN = 1;
 
     for(uint8_t i=0;i<N_AXIS;i++){
         steppers[i].stepPosition = 0.0;
@@ -315,7 +324,7 @@ void limitsHOME(uint8_t cycle_mask){
 
 void xlimit1ISR(){
     limitsActive|=bit(0);
-    //GPIOB->BSRR = (1U<<9);
+    GPIOB->BSRR = (1U<<9);
     //spindle fast stop
     spindleA = 0.0f; spindleB = 0.0f;
     //Clear spindle enable
@@ -327,7 +336,7 @@ void xlimit1ISR(){
 
 void xlimit2ISR(){
     limitsActive|=bit(1);
-    //GPIOB->BSRR = (1U<<9);
+    GPIOB->BSRR = (1U<<9);
     //spindle fast stop
     spindleA = 0.0f; spindleB = 0.0f;
     //Clear spindle enable
@@ -339,7 +348,7 @@ void xlimit2ISR(){
 
 void y1limit1ISR(){
     limitsActive|=bit(2);
-    //GPIOB->BSRR = (1U<<9);
+    GPIOB->BSRR = (1U<<9);
 
     //spindle fast stop
     spindleA = 0.0f; spindleB = 0.0f;
@@ -352,7 +361,7 @@ void y1limit1ISR(){
 
 void y1limit2ISR(){
     limitsActive|=bit(3);
-    //GPIOB->BSRR = (1U<<9);
+    GPIOB->BSRR = (1U<<9);
     //spindle fast stop
     spindleA = 0.0f; spindleB = 0.0f;
     //Clear spindle enable
@@ -364,7 +373,7 @@ void y1limit2ISR(){
 
 void y2limit1ISR(){
     limitsActive|=bit(6);
-    //GPIOB->BSRR = (1U<<9);
+    GPIOB->BSRR = (1U<<9);
     //spindle fast stop
     spindleA = 0.0f; spindleB = 0.0f;
     //Clear spindle enable
@@ -376,7 +385,7 @@ void y2limit1ISR(){
 
 void y2limit2ISR(){
     limitsActive|=bit(7);
-    //GPIOB->BSRR = (1U<<9);
+    GPIOB->BSRR = (1U<<9);
     //spindle fast stop
     spindleA = 0.0f; spindleB = 0.0f;
     //Clear spindle enable
@@ -388,7 +397,7 @@ void y2limit2ISR(){
 
 void zlimit1ISR(){
     limitsActive|=bit(4);
-    //GPIOB->BSRR = (1U<<9);
+    GPIOB->BSRR = (1U<<9);
     //spindle fast stop
     spindleA = 0.0f; spindleB = 0.0f;
     //Clear spindle enable
@@ -400,7 +409,7 @@ void zlimit1ISR(){
 
 void zlimit2ISR(){
     limitsActive|=bit(5);
-    //GPIOB->BSRR = (1U<<9);
+    GPIOB->BSRR = (1U<<9);
     //spindle fast stop
     spindleA = 0.0f; spindleB = 0.0f;
     //Clear spindle enable

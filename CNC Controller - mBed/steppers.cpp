@@ -3,6 +3,7 @@
 #include <cstdint>
 #include "limits.hpp"
 #include "probe.hpp"
+#include "peripherals.hpp"
 
 DigitalInOut stepperEN(stepperEN_pin,PinDirection::PIN_OUTPUT,PinMode::OpenDrainNoPull,1);
 DigitalOut x_dir(xdir_pin);
@@ -87,24 +88,24 @@ void zDir(int dir){
     }
 }
 
-void stepperInit(volatile int accel,volatile int max_speed){
+void stepperInit(){
 
-    steppers[0].dirFunc = xDir;
-    steppers[0].stepFunc = xStep;
-    steppers[0].acceleration = accel;
-    steppers[0].minStepInterval = max_speed;
+    steppers[X_AXIS].dirFunc = xDir;
+    steppers[X_AXIS].stepFunc = xStep;
+    steppers[X_AXIS].acceleration = settings.acceleration[X_AXIS];
+    steppers[X_AXIS].minStepInterval = settings.max_rate[X_AXIS];
     //steppers[0].stepCount = 0;
 
-    steppers[1].dirFunc = yDir;
-    steppers[1].stepFunc = yStep;
-    steppers[1].acceleration = accel;
-    steppers[1].minStepInterval = max_speed;
+    steppers[Y_AXIS].dirFunc = yDir;
+    steppers[Y_AXIS].stepFunc = yStep;
+    steppers[Y_AXIS].acceleration = settings.acceleration[Y_AXIS];
+    steppers[Y_AXIS].minStepInterval = settings.max_rate[Y_AXIS];
     //steppers[1].stepCount = 0;
 
-    steppers[2].dirFunc = zDir;
-    steppers[2].stepFunc = zStep;
-    steppers[2].acceleration = accel;
-    steppers[2].minStepInterval = max_speed;
+    steppers[Z_AXIS].dirFunc = zDir;
+    steppers[Z_AXIS].stepFunc = zStep;
+    steppers[Z_AXIS].acceleration = settings.acceleration[Z_AXIS];
+    steppers[Z_AXIS].minStepInterval = settings.max_rate[Z_AXIS];
     //steppers[2].stepCount = 0;
 
     stepperEN = 1;
@@ -256,6 +257,7 @@ void motorXMovement(){
             system_reset();
         }
         for (int i = 0; i<=x.rampUpStepCount; i++){
+            while(holdFlag){};
             Xstep_HIGH
             wait_us(x.accel_di[i]);
             Xstep_LOW
@@ -264,6 +266,7 @@ void motorXMovement(){
             //wait_us(x.accel_di[i]);
         }
         for (int i = 0; i<(x.totalSteps - 2*(x.rampUpStepCount+1)); i++){
+            while(holdFlag){};
             Xstep_HIGH
             wait_us(x.minStepInterval*x.speedScale);
             Xstep_LOW
@@ -272,6 +275,7 @@ void motorXMovement(){
             
         }
         for (int i = x.rampUpStepCount;i>=0;i--){
+            while(holdFlag){};
             Xstep_HIGH
             wait_us(x.decel_di[i]);
             Xstep_LOW
@@ -307,6 +311,7 @@ void motorYMovement(){
             system_reset();
         }
         for (int i = 0; i<=y.rampUpStepCount; i++){
+            while(holdFlag){};
             Ystep_HIGH
             wait_us(y.accel_di[i]);
             Ystep_LOW
@@ -314,6 +319,7 @@ void motorYMovement(){
             y.stepPosition += y.dir;
         }
         for (int i = 0; i<(y.totalSteps - 2*(y.rampUpStepCount+1)); i++){
+            while(holdFlag){};
             Ystep_HIGH
             wait_us(y.minStepInterval*y.speedScale);
             Ystep_LOW
@@ -321,6 +327,7 @@ void motorYMovement(){
             y.stepPosition += y.dir;
         }
         for (int i = y.rampUpStepCount;i>=0;i--){
+            while(holdFlag){};
             Ystep_HIGH
             wait_us(y.decel_di[i]);
             Ystep_LOW
@@ -357,6 +364,7 @@ void motorZMovement(){
             system_reset();
         }
         for (int i = 0; i<=z.rampUpStepCount; i++){
+            while(holdFlag){};
             Zstep_HIGH
             wait_us(z.accel_di[i]);
             Zstep_LOW
@@ -364,6 +372,7 @@ void motorZMovement(){
             z.stepPosition += z.dir;
         }
         for (int i = 0; i<(z.totalSteps - 2*(z.rampUpStepCount+1)); i++){
+            while(holdFlag){};
             Zstep_HIGH
             wait_us(z.minStepInterval*z.speedScale);
             Zstep_LOW
@@ -371,6 +380,7 @@ void motorZMovement(){
             z.stepPosition += z.dir;
         }
         for (int i = z.rampUpStepCount;i>=0;i--){
+            while(holdFlag){};
             Zstep_HIGH
             wait_us(z.decel_di[i]);
             Zstep_LOW
@@ -572,10 +582,7 @@ void probeCycle(float *target, float feed_rate, uint8_t invert_feed_rate){
     stepperEN = 0;
     while(!probeTool()){
 
-        if (sys.abort == SUSPEND_ENABLE_HOLD){
-            return;
-        }
-
+        while(holdFlag){};
         Zstep_HIGH
         wait_us(750);
         Zstep_LOW
@@ -593,9 +600,7 @@ void probeCycle(float *target, float feed_rate, uint8_t invert_feed_rate){
     //re-cycle to check that
     uint32_t testProbeDist = 0.0;
     while(!probeTool()){
-        if (sys.abort == SUSPEND_ENABLE_HOLD){
-            return;
-        }
+        while(holdFlag){};
         Zstep_HIGH
         wait_us(325);
         Zstep_LOW

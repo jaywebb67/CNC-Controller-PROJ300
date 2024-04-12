@@ -3,88 +3,132 @@
 #include "steppers.hpp"
 #include "jogButtons.hpp"
 #include "Gcode.hpp"
+#include <cstdint>
 #include <cstdio>
 #include <string>
-//#include "clock_config.hpp"
+#include "settings.hpp"
+#include "probe.hpp"
+#include "coolant.hpp"
+#include "spindle.hpp"
+#include "SDcard.hpp"
+#include "limits.hpp"
+#include "peripherals.hpp"
 
-// Thread motorMovement;
-// EventQueue motorQueue;
 
 
-// main() runs in its own thread in the OS
 int main()
 {
-    //motorMovement.start(callback(&motorQueue, &EventQueue::dispatch_forever));
-    volatile bool skip = 0;
-    volatile int axis = 0;
-    volatile long steps = 0;
-    volatile int acceleration = 0;
-    volatile int max_speed = 0;
+
+    volatile int char_counter = 0;
     volatile int mode = 0;
-    
-    char *g_codeLine = (char *)malloc(MAX_CHARACTER_PER_LINE * sizeof(char)); // Allocate memory for input
-    if (g_codeLine == NULL) {
+    char *userInput = (char *)malloc(MAX_CHARACTER_PER_LINE * sizeof(char)); // Allocate memory for input
+    if (userInput == NULL) {
         printf("Memory allocation failed.");
         return 1;
     }
-    printf("\n\rEnter the acceleration rate: " );
-    
-    if(scanf("%d",&acceleration) ==1){
-        printf("%d \n\r",acceleration);
-    }
 
-    else{
-        printf("Failed to scan acceleration input\n\r");
-    }
 
-    printf("\n\rEnter the max speed: " );
-    
-    if(scanf("%d",&max_speed) ==1){
-        printf("%d \n\r",max_speed);
-    }
-
-    else{
-        printf("Failed to scan max_speed input\n\r");
-    }
-
-    stepperInit(acceleration,max_speed);
+    settings_init();
+    spindleInit();
+    stepperInit();
+    limitsInit();
     jogInit();
+    probeInit();
+    peripheralsInit();
+    sdCard_Init();
+    coolantInit();
+    homeCycle();
 
-    printf("\n\rSelect mode of operation (1 = Jog, 2 = MDI): ");
-    scanf("%d",&mode);
-    printf("%d\n\r",mode);
-
+    printf( "------------------------------------\r\n"
+            "Welcome to STM32 CNC Controller V1.0\r\n"
+            "------------------------------------\r\n");
+            
 
     while (true) {
+        char_counter = 0;
+        printf( "Main Menu:\r\n"
+                "$$ ------- (view settings)\r\n"
+                "$# ------- (view # parameters)\r\n"
+                "$G ------- (view parser state)\r\n"
+                "$x=value - (save setting)\r\n"
+                "$H ------- (run homing cycle)\r\n"
+                "$S ------- (SD card)\r\n"
+                "$J ------- (Jogging)\r\n"
+                "$MDI ----- (Manual Data Input)\r\n");
 
-        if ((mode == 1)&&(skip == 0)){
-            jogEnable(1);
-            skip = 1;
+        scanf(" %[^\n]",userInput);
+        while(userInput[char_counter] != '\0'){
+            switch(userInput[char_counter]){
+                case '$':
+                    char_counter++;
+                    if(userInput[char_counter] == ' '){
+                        char_counter++;
+                    }
+                    switch(userInput[char_counter]){
+                        case '$':
+                            reportSettings();
+                            break;
+                        case '#':
+                            report_ngc_parameters();
+                            break;
+                        case 'G':
+                            reportParserModes();
+                            break;
+                        case 'H':
+                            homeCycle();
+                            break;
+                        case 'S':
+                            sdCardMode();
+                            break;
+                        case 'J':
+                            jogEnable(1);
+                            break;
+                        case 'M':
+                            gCodeMode();
+                        default:
+                            char parameterStr[5];
+                            char* endPtr;
+                            char valueStr[20];
+                            uint8_t valueIndex = 0;
+                            while(userInput[char_counter] == ' '){
+                                char_counter++;
+                            }
+                            // Store characters in valueString until whitespace or non-number character or end of line
+                            while (userInput[char_counter] != ' ' && userInput[char_counter] != '\0' && !isalpha(userInput[char_counter])) {
+                                if(userInput[char_counter] == '='){
+                                    char_counter++;
+                                    break;
+                                }
+                                parameterStr[valueIndex++] = userInput[char_counter++];
+                            }
+                            while (userInput[char_counter] != ' ' && userInput[char_counter] != '\0' && !isalpha(userInput[char_counter])) {
+                                valueStr[valueIndex++] = userInput[char_counter++];
+                            }
+                            uint16_t parameter = (uint16_t)strtoul(parameterStr, &endPtr, 10);
 
+                            // Check for conversion errors
+                            if (*endPtr != '\0') {
+                                printf("Error: Invalid input\n");
+                            } 
+                            
+                            float value = strtof(valueStr, &endPtr);
+
+                            // Check if conversion was successful
+                            if (*endPtr != '\0') {
+                                // Conversion failed, handle error
+                                printf("Error: Invalid numerical value '%s'\n", valueStr);
+                            }
+                            settings_store_global_setting(parameter, value);
+                            break;
+                    }
+                    break;
+                default:
+                    printf("Incorrect input format, Re-enter according to how menu displayed!\r\n");
+                    break;
+            }
+            char_counter++;
         }
-        else if ((mode == 2)&&(skip == 0)) {
 
-            printf("Enter G-code line: ");
-            fscanf(stdin," %[^\n]",g_codeLine);
-            printf("%s\n\r", g_codeLine);
-            parse_gcode(g_codeLine);
-
-            // printf("Select which axis to move (X,Y,Z): ");
-            // scanf("%d",&axis);
-            // printf("%d\n\r",axis);
-
-            // printf("Select the amount of steps to take: ");
-            // scanf("%ld",&steps);
-            // printf("%ld\n\r",steps);
-
-            // prepareMovement(axis, steps);
-            // prepareMovement(2, 2* steps);
-            // prepareMovement(3, 3* steps);
-            // runAndWait();
-        }
-        else{
-            ThisThread::sleep_for(5s);
-        }
     }
-    free(g_codeLine);
+    free(userInput);
 }

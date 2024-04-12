@@ -244,6 +244,7 @@ typedef struct lineStruct_state_t{
 } lineStruct_state_t;
 extern lineStruct_state_t line_state;
 
+int gCodeMode();
 void parse_gcode(char *line);
 void executeLine(lineStruct_block_t line_structure);
 
