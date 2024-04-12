@@ -524,7 +524,7 @@ void motionArc(float *position, float *target, float *offset, float radius, floa
 
 }    
 
-void homing_cycle(){
+void homing_Cycle(){
         // Check and abort homing cycle, if hard limits are already enabled. Helps prevent problems
     // with machines with limits wired on both ends of travel to one limit pin.
     // TODO: Move the pin-specific LIMIT_PIN call to limits.c as a function.
@@ -611,6 +611,6 @@ void probeCycle(float *target, float feed_rate, uint8_t invert_feed_rate){
         sys.probe_succeeded = true;
         line_state.tool_length_offset = (settings.max_travel[Z_AXIS] - (zStepper.stepPosition*settings.steps_per_mm[Z_AXIS]));
     }
-    homing_cycle();
+    homing_Cycle();
     return;
 }

@@ -37,7 +37,7 @@ int main()
     peripheralsInit();
     sdCard_Init();
     coolantInit();
-    homeCycle();
+    homing_Cycle();
 
     printf( "------------------------------------\r\n"
             "Welcome to STM32 CNC Controller V1.0\r\n"
@@ -75,7 +75,7 @@ int main()
                             reportParserModes();
                             break;
                         case 'H':
-                            homeCycle();
+                            homing_Cycle();
                             break;
                         case 'S':
                             sdCardMode();

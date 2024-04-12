@@ -6,7 +6,7 @@
 */
 
 #include "Gcode.hpp"
-
+#include "settings.hpp"
 #include "limits.hpp"
 
 #include <cctype>
@@ -115,7 +115,7 @@ volatile int valueIndex = 0;
 volatile float value = 0.0f;
 volatile uint8_t axis_0 = 0, axis_1 = 0, axis_linear = 0;
 volatile int char_counter = 0;
-volatile uint8_t coord_select = 0; // Tracks G10 P coordinate selection for execution
+volatile uint16_t coord_select = 0; // Tracks G10 P coordinate selection for execution
 float coordinate_data[N_AXIS] = {0};
 float parameter_data[N_AXIS] = {0};
 void parse_gcode(char *line) {
@@ -1016,7 +1016,7 @@ void parse_gcode(char *line) {
             
             // Execute coordinate change and spindle/coolant stop.
 
-            if (!(settings_read_coord_data(line_state.modal.coordSystem,coordinate_data))) { 
+            if (!(settings_read_coord_data((uint16_t)line_state.modal.coordSystem,coordinate_data))) { 
                 printf("Failed to read coordinate data settings from flash");
                 return;                    
             } 

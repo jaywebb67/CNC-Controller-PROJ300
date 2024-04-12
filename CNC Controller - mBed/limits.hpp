@@ -27,7 +27,7 @@
   #define HOMING_AXIS_LOCATE_SCALAR  5.0 // Must be > 1 to ensure limit switch is cleared.
 #endif
 
-extern uint8_t limitsActive;
+
 
 void limitsInit();
 uint8_t softLimitCheck(lineStruct_block_t line_structure);

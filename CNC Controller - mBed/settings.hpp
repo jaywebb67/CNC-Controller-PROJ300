@@ -90,7 +90,7 @@ uint8_t settings_read_build_info(char *line);
 void settings_write_coord_data(uint8_t coord_select, float *coord_data);
 
 // Reads selected coordinate data from Flash
-uint16_t settings_read_coord_data(uint16_t coord_select, float *coord_data);
+uint8_t settings_read_coord_data(uint8_t coord_select, float *coord_data);
 
 // Stores the protocol line variable as a startup line in EEPROM
 void settings_store_startup_line(uint16_t n, char *line);

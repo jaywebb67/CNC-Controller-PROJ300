@@ -34,7 +34,7 @@ void zlimit2ISR();
 
 void limitsInit(){
 
-    limitsActive = 0;
+
     xlimit1.fall(xlimit1ISR);
     xlimit2.fall(xlimit2ISR);
     y1limit1.fall(y1limit1ISR);
@@ -323,7 +323,7 @@ void limitsHOME(uint8_t cycle_mask){
 
 
 void xlimit1ISR(){
-    limitsActive|=bit(0);
+
     GPIOB->BSRR = (1U<<9);
     //spindle fast stop
     spindleA = 0.0f; spindleB = 0.0f;
@@ -335,7 +335,7 @@ void xlimit1ISR(){
 }
 
 void xlimit2ISR(){
-    limitsActive|=bit(1);
+
     GPIOB->BSRR = (1U<<9);
     //spindle fast stop
     spindleA = 0.0f; spindleB = 0.0f;
@@ -347,7 +347,7 @@ void xlimit2ISR(){
 }
 
 void y1limit1ISR(){
-    limitsActive|=bit(2);
+
     GPIOB->BSRR = (1U<<9);
 
     //spindle fast stop
@@ -360,7 +360,7 @@ void y1limit1ISR(){
 }
 
 void y1limit2ISR(){
-    limitsActive|=bit(3);
+
     GPIOB->BSRR = (1U<<9);
     //spindle fast stop
     spindleA = 0.0f; spindleB = 0.0f;
@@ -372,7 +372,7 @@ void y1limit2ISR(){
 }
 
 void y2limit1ISR(){
-    limitsActive|=bit(6);
+
     GPIOB->BSRR = (1U<<9);
     //spindle fast stop
     spindleA = 0.0f; spindleB = 0.0f;
@@ -384,7 +384,7 @@ void y2limit1ISR(){
 }
 
 void y2limit2ISR(){
-    limitsActive|=bit(7);
+
     GPIOB->BSRR = (1U<<9);
     //spindle fast stop
     spindleA = 0.0f; spindleB = 0.0f;
@@ -396,7 +396,7 @@ void y2limit2ISR(){
 }
 
 void zlimit1ISR(){
-    limitsActive|=bit(4);
+
     GPIOB->BSRR = (1U<<9);
     //spindle fast stop
     spindleA = 0.0f; spindleB = 0.0f;
@@ -408,7 +408,7 @@ void zlimit1ISR(){
 }
 
 void zlimit2ISR(){
-    limitsActive|=bit(5);
+    
     GPIOB->BSRR = (1U<<9);
     //spindle fast stop
     spindleA = 0.0f; spindleB = 0.0f;

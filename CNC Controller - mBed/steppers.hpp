@@ -117,7 +117,7 @@ void runAndWait();
 void prepareMovement(int whichMotor, float steps);
 void motionArc(float *position, float *target, float *offset, float radius, float feed_rate,
             uint8_t invert_feed_rate, uint8_t axis_0, uint8_t axis_1, uint8_t axis_linear, uint8_t is_clockwise_arc);
-void homeCycle();
+void homing_Cycle();
 void probeCycle(float *target, float feed_rate, uint8_t invert_feed_rate);
 
 // void move_axis_stepper_motor(int axis, uint32_t steps,int dir);
